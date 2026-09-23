@@ -1,0 +1,17 @@
+.settings { display: grid; gap: 16px; max-width: 900px; margin: 0 auto; }
+.settings label { display: block; margin: 8px 0; }
+.settings label.check { display: flex; gap: 8px; align-items: center; }
+.settings input:not([type="checkbox"]), .settings select, .settings textarea {
+  display: block; width: 100%; margin-top: 4px; padding: 7px 9px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit;
+}
+.settings textarea { font: 12px/1.5 ui-monospace, Consolas, monospace; }
+.settings input:invalid { border-color: var(--bad); }
+.settings fieldset { border: 0; padding: 0; margin: 0; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.hint { color: var(--muted); font-size: 13px; }
+code { background: var(--track); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+.status { max-width: 900px; margin: 0 auto 16px; padding: 10px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); }
+.status.ok { border-color: var(--ok); color: var(--ok); }
+.status.bad { border-color: var(--bad); color: var(--bad); }
+.topbar label.btn { display: inline-block; }

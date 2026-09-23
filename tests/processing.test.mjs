@@ -1,0 +1,164 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+import {
+  parseSapDate, parseAmount, daysBetween, analyzeChecklist, analyzeUnposted, analyzeGrir,
+  analyzeAccruals, buildSnapshot,
+} from '../src/lib/processing.js';
+import { parseODataPage, buildUrl, fillPlaceholders } from '../src/lib/sapClient.js';
+import { deepMerge, periodVars, stripSecrets, requiredOrigins } from '../src/lib/config.js';
+import { mockRaw } from '../src/lib/mockData.js';
+
+const config = JSON.parse(readFileSync(new URL('../config/default-config.json', import.meta.url)));
+// Tests use a fixed host so editing the real system URL in the config doesn't break them.
+config.sap.baseUrl = 'https://my-s4-system.example.com';
+config.sap.companyCode = '1000';
+config.sap.fiscalYear = '';
+const today = new Date('2026-09-23T10:00:00Z');
+const day = (off) => `/Date(${today.getTime() + off * 86400000})/`;
+
+test('parseSapDate handles OData v2, ISO and yyyymmdd', () => {
+  assert.equal(parseSapDate('/Date(1758585600000)/').toISOString(), '2025-09-23T00:00:00.000Z');
+  assert.equal(parseSapDate('/Date(1758585600000+0000)/').toISOString(), '2025-09-23T00:00:00.000Z');
+  assert.equal(parseSapDate('2026-09-01').toISOString().slice(0, 10), '2026-09-01');
+  assert.equal(parseSapDate('20260901').toISOString().slice(0, 10), '2026-09-01');
+  assert.equal(parseSapDate(''), null);
+  assert.equal(parseSapDate('garbage'), null);
+});
+
+test('parseAmount handles strings, commas and junk', () => {
+  assert.equal(parseAmount('1,234.50'), 1234.5);
+  assert.equal(parseAmount(-7), -7);
+  assert.equal(parseAmount(null), 0);
+  assert.equal(parseAmount('abc'), 0);
+});
+
+test('daysBetween counts calendar days', () => {
+  assert.equal(daysBetween(new Date('2026-09-20T23:00:00Z'), today), 3);
+  assert.equal(daysBetween(null, today), null);
+});
+
+test('checklist states: done, error, overdue, open', () => {
+  const src = config.sources.checklist;
+  const rows = [
+    { TaskID: '1', TaskName: 'A', Status: 'COMPLETED', PlannedEndDate: day(-5) },
+    { TaskID: '2', TaskName: 'B', Status: 'ERROR', PlannedEndDate: day(1) },
+    { TaskID: '3', TaskName: 'C', Status: 'IN_PROCESS', PlannedEndDate: day(-1) },
+    { TaskID: '4', TaskName: 'D', Status: 'NOT_STARTED', PlannedEndDate: day(0) },
+  ];
+  const r = analyzeChecklist(rows, src, today);
+  assert.deepEqual(r.items.map((t) => t.state), ['done', 'error', 'overdue', 'open']);
+  assert.equal(r.completionPct, 25);
+});
+
+test('unposted documents are filtered by threshold and sorted by amount', () => {
+  const src = config.sources.unposted;
+  const rows = [
+    { AccountingDocument: 'a', AmountInCompanyCodeCurrency: '10', CompanyCodeCurrency: 'EUR', PostingDate: day(-1) },
+    { AccountingDocument: 'b', AmountInCompanyCodeCurrency: '-500', CompanyCodeCurrency: 'EUR', PostingDate: day(-9) },
+  ];
+  const r = analyzeUnposted(rows, src, { unpostedMinAmount: 100 }, today);
+  assert.equal(r.count, 1);
+  assert.equal(r.items[0].id, 'b');
+  assert.equal(r.items[0].ageDays, 9);
+  assert.equal(r.totalAmount, 500);
+});
+
+test('GR/IR flags old, material differences and buckets by age', () => {
+  const src = { ...config.sources.grir, signedAmounts: false };
+  const rows = [
+    { PurchaseOrder: '1', GoodsReceiptAmount: '5000', InvoiceReceiptAmount: '0', LastMovementDate: day(-95) },
+    { PurchaseOrder: '2', GoodsReceiptAmount: '5000', InvoiceReceiptAmount: '0', LastMovementDate: day(-5) },
+    { PurchaseOrder: '3', GoodsReceiptAmount: '100', InvoiceReceiptAmount: '0', LastMovementDate: day(-95) },
+    { PurchaseOrder: '4', GoodsReceiptAmount: '200', InvoiceReceiptAmount: '200', LastMovementDate: day(-95) },
+  ];
+  const r = analyzeGrir(rows, src, { grirAgingDays: 30, grirMinDifference: 1000 }, today);
+  assert.equal(r.count, 3, 'fully matched items are excluded');
+  assert.deepEqual(r.items.filter((i) => i.flagged).map((i) => i.id), ['1']);
+  assert.equal(r.buckets['90+'], 5100);
+  assert.equal(r.buckets['0-30'], 5000);
+});
+
+test('GR/IR signed amounts (as posted on the GR/IR account) are normalised', () => {
+  const src = { ...config.sources.grir, signedAmounts: true };
+  const rows = [
+    // GR 5000 credited, IR 3000 debited -> 2000 received but not invoiced
+    { PurchaseOrder: '1', GoodsReceiptAmount: '-5000.00', InvoiceReceiptAmount: '3000.00', LastMovementDate: day(-40) },
+    // No GR yet (null from the CDS sum), invoice 800 -> invoiced but not received
+    { PurchaseOrder: '2', GoodsReceiptAmount: null, InvoiceReceiptAmount: '800.00', LastMovementDate: day(-3) },
+  ];
+  const r = analyzeGrir(rows, src, { grirAgingDays: 30, grirMinDifference: 1000 }, today);
+  const byId = Object.fromEntries(r.items.map((i) => [i.id, i]));
+  assert.equal(byId['1'].grAmount, 5000);
+  assert.equal(byId['1'].difference, 2000);
+  assert.equal(byId['1'].flagged, true);
+  assert.equal(byId['2'].difference, -800);
+});
+
+test('accruals: missing, variance within/over tolerance, overdue', () => {
+  const src = config.sources.accruals;
+  const rows = [
+    { AccrualObject: 'm', PlannedAmount: '1000', PostedAmount: '0', PostingDueDate: day(-1) },
+    { AccrualObject: 'v', PlannedAmount: '1000', PostedAmount: '900', PostingDueDate: day(2) },
+    { AccrualObject: 'ok', PlannedAmount: '1000', PostedAmount: '970', PostingDueDate: day(-1) },
+  ];
+  const r = analyzeAccruals(rows, src, { accrualTolerancePct: 5 }, today);
+  assert.deepEqual(r.items.map((a) => a.state), ['missing', 'variance', 'ok']);
+  assert.equal(r.items[0].overdue, true);
+  assert.equal(r.items[2].overdue, false);
+  assert.equal(r.missingAmount, 1000);
+});
+
+test('buildSnapshot on demo data produces all sections and sorted alerts', () => {
+  const snap = buildSnapshot(mockRaw(config, today), config, today);
+  assert.deepEqual(Object.keys(snap.summary).sort(), ['accruals', 'checklist', 'grir', 'unposted']);
+  assert.ok(snap.alerts.length > 0);
+  const rank = { high: 0, medium: 1, low: 2 };
+  for (let i = 1; i < snap.alerts.length; i++) assert.ok(rank[snap.alerts[i - 1].severity] <= rank[snap.alerts[i].severity]);
+  assert.equal(snap.summary.checklist.error, 1);
+  assert.equal(snap.summary.accruals.missingCount, 3);
+});
+
+test('buildSnapshot reports per-source errors without failing others', () => {
+  const raw = mockRaw(config, today);
+  raw.grir = new Error('SAP returned 404');
+  const snap = buildSnapshot(raw, config, today);
+  assert.equal(snap.errors.grir, 'SAP returned 404');
+  assert.equal(snap.summary.grir, undefined);
+  assert.ok(snap.summary.checklist);
+});
+
+test('parseODataPage handles v2 and v4 payloads', () => {
+  assert.deepEqual(parseODataPage({ d: { results: [1, 2], __next: 'n' } }), { rows: [1, 2], next: 'n' });
+  assert.deepEqual(parseODataPage({ value: [3], '@odata.nextLink': 'm' }), { rows: [3], next: 'm' });
+  assert.deepEqual(parseODataPage({}), { rows: [], next: null });
+});
+
+test('buildUrl fills placeholders and escapes quotes', () => {
+  assert.equal(fillPlaceholders("X eq '{a}' and {missing}", { a: "O'Neil" }), "X eq 'O''Neil' and {missing}");
+  const url = buildUrl(config, config.sources.grir, { companyCode: '1000' });
+  assert.equal(url.origin, 'https://my-s4-system.example.com');
+  assert.equal(url.searchParams.get('sap-client'), '100');
+  assert.equal(url.searchParams.get('$filter'), "CompanyCode eq '1000'");
+  const proxied = buildUrl({ ...config, sap: { ...config.sap, proxyUrl: 'https://proxy.local' } }, config.sources.grir, {});
+  assert.equal(proxied.origin, 'https://proxy.local');
+});
+
+test('config helpers', () => {
+  assert.deepEqual(deepMerge({ a: { b: 1, c: 2 }, l: [1] }, { a: { c: 3 }, l: [2] }), { a: { b: 1, c: 3 }, l: [2] });
+  assert.deepEqual(periodVars(config, today), { fiscalYear: '2026', period: '009', companyCode: '1000' });
+  const fixedFy = { ...config, sap: { ...config.sap, companyCode: '7827', fiscalYear: '2025' } };
+  assert.deepEqual(periodVars(fixedFy, today), { fiscalYear: '2025', period: '009', companyCode: '7827' });
+  const aprilFy = { ...config, sap: { ...config.sap, fiscalYearStartMonth: 4 } };
+  assert.deepEqual(periodVars(aprilFy, today), { fiscalYear: '2027', period: '006', companyCode: '1000' });
+  const secret = structuredClone(config);
+  secret.auth.basic.password = 'x';
+  secret.auth.oauth2.clientSecret = 'y';
+  const clean = stripSecrets(secret);
+  assert.equal(clean.auth.basic.password, undefined);
+  assert.equal(clean.auth.oauth2.clientSecret, undefined);
+  assert.deepEqual(requiredOrigins(config), ['https://my-s4-system.example.com/*']);
+  const onPrem = { ...config, sap: { ...config.sap, baseUrl: 'http://sapgw01.corp.local:8000' }, auth: { ...config.auth, method: 'basic' } };
+  assert.deepEqual(requiredOrigins(onPrem), ['http://sapgw01.corp.local/*'], 'http host, port stripped');
+});

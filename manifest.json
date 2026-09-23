@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Month-End Close Co-Pilot",
+  "version": "1.0.0",
+  "description": "Daily month-end close dashboard: checklist status, unposted documents, open GR/IR and missing accruals straight from SAP.",
+  "action": {
+    "default_title": "Open Close Co-Pilot",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "options_page": "src/options/options.html",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "identity"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

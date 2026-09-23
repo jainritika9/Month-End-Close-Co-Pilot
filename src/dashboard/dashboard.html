@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Close Co-Pilot</title>
+  <link rel="icon" href="../../icons/icon32.png" />
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Month-End Close Co-Pilot</h1>
+      <span id="period" class="muted"></span>
+      <span id="demoBadge" class="pill pill-demo" hidden>Demo data</span>
+    </div>
+    <div class="actions">
+      <span id="syncedAt" class="muted"></span>
+      <span id="sessionInfo" class="muted"></span>
+      <button id="refreshAll" class="btn primary" type="button">Refresh all</button>
+      <button id="signOut" class="btn" type="button" hidden>Sign out</button>
+      <button id="openSettings" class="btn" type="button">Settings</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="banner" class="banner" hidden></div>
+
+    <!-- Sign-in (only when not in demo mode and no session) -->
+    <section id="login" class="card login" hidden>
+      <h2>Sign in to SAP</h2>
+      <p class="muted" id="loginTarget"></p>
+      <div id="loginOAuth" hidden>
+        <p>You'll be redirected to your SAP system's sign-in page. The access token is kept only in browser memory for this session.</p>
+        <button id="oauthBtn" class="btn primary" type="button">Sign in with SAP</button>
+      </div>
+      <form id="loginBasic" hidden autocomplete="off">
+        <p>Your password is not stored. It is only used to create an in-memory session that ends when the browser closes.</p>
+        <label>User <input id="basicUser" required autocomplete="username" /></label>
+        <label>Password <input id="basicPassword" type="password" required autocomplete="current-password" /></label>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+      <p id="loginError" class="error" hidden></p>
+    </section>
+
+    <div id="content" hidden>
+      <section class="alerts card" aria-labelledby="alertsTitle">
+        <h2 id="alertsTitle">Today's exceptions</h2>
+        <ul id="alertList" class="alert-list"></ul>
+      </section>
+
+      <section class="kpis" id="kpis"></section>
+
+      <div class="grid">
+        <section class="card" id="card-checklist" data-source="checklist">
+          <div class="card-head">
+            <h2>Close checklist</h2>
+            <button class="btn small" data-refresh="checklist" type="button">Refresh</button>
+          </div>
+          <div class="card-error error" hidden></div>
+          <div class="chart-slot"></div>
+          <div class="filters" role="tablist"></div>
+          <div class="table-slot"></div>
+        </section>
+
+        <section class="card" id="card-unposted" data-source="unposted">
+          <div class="card-head">
+            <h2>Unposted documents</h2>
+            <button class="btn small" data-refresh="unposted" type="button">Refresh</button>
+          </div>
+          <div class="card-error error" hidden></div>
+          <div class="chart-slot"></div>
+          <div class="table-slot"></div>
+        </section>
+
+        <section class="card" id="card-grir" data-source="grir">
+          <div class="card-head">
+            <h2>Open GR/IR</h2>
+            <button class="btn small" data-refresh="grir" type="button">Refresh</button>
+          </div>
+          <div class="card-error error" hidden></div>
+          <div class="chart-slot"></div>
+          <div class="filters" role="tablist"></div>
+          <div class="table-slot"></div>
+        </section>
+
+        <section class="card" id="card-accruals" data-source="accruals">
+          <div class="card-head">
+            <h2>Accruals</h2>
+            <button class="btn small" data-refresh="accruals" type="button">Refresh</button>
+          </div>
+          <div class="card-error error" hidden></div>
+          <div class="chart-slot"></div>
+          <div class="filters" role="tablist"></div>
+          <div class="table-slot"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Drill-down drawer -->
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <h2 id="drawerTitle">Details</h2>
+      <button id="drawerClose" class="btn small" type="button" aria-label="Close details">Close</button>
+    </div>
+    <div id="drawerBody"></div>
+  </aside>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

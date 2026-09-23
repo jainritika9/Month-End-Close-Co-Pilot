@@ -1,0 +1,8 @@
+@EndUserText.label: 'MWC R2R - Parked FI documents (auth)'
+@MappingRole: true
+// Row-level check on company code: users see only company codes they may display
+// FI documents for (auth object F_BKPF_BUK, activity 03), same as FB03 / FBL3N.
+define role ZI_R2R_ParkedDocument {
+  grant select on ZI_R2R_ParkedDocument
+    where ( CompanyCode ) = aspect pfcg_auth( F_BKPF_BUK, BUKRS, ACTVT = '03' );
+}

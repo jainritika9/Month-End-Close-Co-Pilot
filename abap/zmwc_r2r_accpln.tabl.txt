@@ -1,0 +1,23 @@
+@EndUserText.label : 'MWC R2R - Accrual plan per period'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table zmwc_r2r_accpln {
+
+  key client     : abap.clnt not null;
+  key bukrs      : bukrs not null;
+  key gjahr      : gjahr not null;
+  key poper      : poper not null;
+  key accrual_id : abap.char(20) not null;
+  description    : abap.char(60);
+  gl_account     : saknr;
+  cost_center    : kostl;
+  doc_type       : blart;
+  @Semantics.amount.currencyCode : 'zmwc_r2r_accpln.currency'
+  planned_amount : abap.curr(23,2);
+  currency       : waers;
+  due_date       : abap.dats;
+  responsible    : abap.char(40);
+
+}

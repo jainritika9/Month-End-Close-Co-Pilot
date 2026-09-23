@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Co-Pilot Settings</title>
+  <link rel="stylesheet" href="../dashboard/dashboard.css" />
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><h1>Close Co-Pilot · Settings</h1></div>
+    <div class="actions">
+      <button id="exportBtn" class="btn" type="button">Export JSON</button>
+      <label class="btn">Import JSON <input id="importFile" type="file" accept="application/json" hidden /></label>
+      <button id="resetBtn" class="btn" type="button">Reset to defaults</button>
+      <button id="saveBtn" class="btn primary" type="submit" form="settings">Save</button>
+    </div>
+  </header>
+
+  <main>
+    <p id="status" class="status" role="status" hidden></p>
+
+    <form id="settings" class="settings">
+      <section class="card">
+        <h2>Mode</h2>
+        <label class="check"><input type="checkbox" name="demoMode" /> Demo mode (use built-in sample data, no SAP connection)</label>
+      </section>
+
+      <section class="card">
+        <h2>SAP system</h2>
+        <label>Base URL <input name="sap.baseUrl" type="url" placeholder="https://my-s4.example.com" required /></label>
+        <div class="row">
+          <label>Client (sap-client) <input name="sap.client" pattern="\d{3}" /></label>
+          <label>Company code <input name="sap.companyCode" /></label>
+          <label>Fiscal year starts in month <input name="sap.fiscalYearStartMonth" type="number" min="1" max="12" /></label>
+          <label>Fiscal year (empty = current) <input name="sap.fiscalYear" pattern="\d{4}" placeholder="auto" /></label>
+        </div>
+        <label>Proxy URL (optional) <input name="sap.proxyUrl" type="url" placeholder="Leave empty to call SAP directly" /></label>
+        <p class="hint">A proxy is only needed if the SAP host is not reachable from the browser directly. Extension pages are not subject to CORS once host access is granted.</p>
+        <label>Request timeout (ms) <input name="sap.requestTimeoutMs" type="number" min="1000" step="1000" /></label>
+      </section>
+
+      <section class="card">
+        <h2>Authentication</h2>
+        <label>Method
+          <select name="auth.method">
+            <option value="oauth2">OAuth 2.0 (authorization code + PKCE) — recommended</option>
+            <option value="basic">Basic (user / password, on-premise Gateway)</option>
+          </select>
+        </label>
+        <fieldset data-auth="oauth2">
+          <label>Authorize URL <input name="auth.oauth2.authorizeUrl" type="url" /></label>
+          <label>Token URL <input name="auth.oauth2.tokenUrl" type="url" /></label>
+          <div class="row">
+            <label>Client ID <input name="auth.oauth2.clientId" /></label>
+            <label>Scope <input name="auth.oauth2.scope" /></label>
+          </div>
+          <p class="hint">Register this redirect URI on the OAuth client in SAP (transaction SOAUTH2 or BTP): <code id="redirectUri"></code></p>
+        </fieldset>
+        <fieldset data-auth="basic">
+          <label>Login check path <input name="auth.basic.pingPath" /></label>
+          <p class="hint">Called once at sign-in to validate the credentials. Passwords are never saved.</p>
+        </fieldset>
+      </section>
+
+      <section class="card">
+        <h2>Thresholds</h2>
+        <div class="row">
+          <label>GR/IR aging (days) <input name="thresholds.grirAgingDays" type="number" min="0" /></label>
+          <label>GR/IR min. difference <input name="thresholds.grirMinDifference" type="number" min="0" /></label>
+          <label>Unposted min. amount <input name="thresholds.unpostedMinAmount" type="number" min="0" /></label>
+          <label>Accrual tolerance (%) <input name="thresholds.accrualTolerancePct" type="number" min="0" step="0.5" /></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Sync & alerts</h2>
+        <div class="row">
+          <label>Background sync every (minutes, 0 = off) <input name="sync.autoSyncMinutes" type="number" min="0" /></label>
+        </div>
+        <label class="check"><input type="checkbox" name="sync.notifications" /> Desktop notifications for new high-severity exceptions</label>
+      </section>
+
+      <section class="card">
+        <h2>Data sources (OData services &amp; field mapping)</h2>
+        <p class="hint">
+          One entry per dashboard section: <code>path</code> is the OData entity set, <code>query</code> holds OData options
+          (placeholders <code>{fiscalYear}</code>, <code>{period}</code>, <code>{companyCode}</code>), and <code>fields</code>
+          maps the co-pilot's field names to your service's property names. Default paths are placeholders — point them at
+          the standard APIs or custom CDS views available in your system.
+        </p>
+        <textarea name="sources" rows="24" spellcheck="false"></textarea>
+      </section>
+    </form>
+  </main>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

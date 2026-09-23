@@ -1,0 +1,111 @@
+{
+  "_comment": "Default configuration. Everything here can be overridden from the extension's Options page (or by importing a JSON file with the same shape). Never put passwords or secrets in this file.",
+  "demoMode": true,
+  "sap": {
+    "baseUrl": "http://vhc2jq4rci.rise.ccbji.co.jp:8000/sap/bc/ui2/flp",
+    "client": "100",
+    "companyCode": "7827",
+    "fiscalYear": "2026",
+    "fiscalYearStartMonth": 1,
+    "proxyUrl": "",
+    "requestTimeoutMs": 30000
+  },
+  "auth": {
+    "method": "oauth2",
+    "oauth2": {
+      "authorizeUrl": "https://my-s4-system.example.com/sap/bc/sec/oauth2/authorize",
+      "tokenUrl": "https://my-s4-system.example.com/sap/bc/sec/oauth2/token",
+      "clientId": "CLOSE_COPILOT",
+      "scope": "ZCLOSE_COPILOT_0001"
+    },
+    "basic": {
+      "pingPath": "/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/$metadata"
+    }
+  },
+  "sources": {
+    "checklist": {
+      "label": "Close checklist",
+      "path": "/sap/opu/odata/sap/ZI_R2R_CLOSETASK_CDS/ZI_R2R_CloseTask",
+      "query": {
+        "$filter": "FiscalYear eq '{fiscalYear}' and FiscalPeriod eq '{period}' and CompanyCode eq '{companyCode}'"
+      },
+      "fields": {
+        "id": "TaskID",
+        "name": "TaskName",
+        "owner": "ResponsiblePerson",
+        "status": "Status",
+        "dueDate": "PlannedEndDate",
+        "category": "TaskCategory"
+      },
+      "statusValues": {
+        "done": [
+          "C",
+          "COMPLETED"
+        ],
+        "error": [
+          "E",
+          "ERROR"
+        ]
+      }
+    },
+    "unposted": {
+      "label": "Unposted / parked documents",
+      "path": "/sap/opu/odata/sap/ZI_R2R_PARKEDDOCUMENT_CDS/ZI_R2R_ParkedDocument",
+      "query": {
+        "$filter": "CompanyCode eq '{companyCode}' and FiscalYear eq '{fiscalYear}' and FiscalPeriod eq '{period}'"
+      },
+      "fields": {
+        "id": "AccountingDocument",
+        "type": "AccountingDocumentType",
+        "postingDate": "PostingDate",
+        "amount": "AmountInCompanyCodeCurrency",
+        "currency": "CompanyCodeCurrency",
+        "createdBy": "CreatedByUser",
+        "text": "DocumentHeaderText"
+      }
+    },
+    "grir": {
+      "label": "Open GR/IR items",
+      "path": "/sap/opu/odata/sap/ZI_R2R_GRIROPENITEM_CDS/ZI_R2R_GRIROpenItem",
+      "query": {
+        "$filter": "CompanyCode eq '{companyCode}'"
+      },
+      "fields": {
+        "id": "PurchaseOrder",
+        "item": "PurchaseOrderItem",
+        "supplier": "SupplierName",
+        "grAmount": "GoodsReceiptAmount",
+        "irAmount": "InvoiceReceiptAmount",
+        "currency": "CompanyCodeCurrency",
+        "lastMovementDate": "LastMovementDate"
+      },
+      "signedAmounts": true
+    },
+    "accruals": {
+      "label": "Accruals",
+      "path": "/sap/opu/odata/sap/ZI_R2R_ACCRUALCHECK_CDS/ZI_R2R_AccrualCheck",
+      "query": {
+        "$filter": "CompanyCode eq '{companyCode}' and FiscalYear eq '{fiscalYear}' and FiscalPeriod eq '{period}'"
+      },
+      "fields": {
+        "id": "AccrualObject",
+        "description": "Description",
+        "costCenter": "CostCenter",
+        "expectedAmount": "PlannedAmount",
+        "postedAmount": "PostedAmount",
+        "currency": "CompanyCodeCurrency",
+        "dueDate": "PostingDueDate"
+      }
+    }
+  },
+  "thresholds": {
+    "grirAgingDays": 30,
+    "grirMinDifference": 1000,
+    "unpostedMinAmount": 0,
+    "accrualTolerancePct": 5
+  },
+  "sync": {
+    "autoSyncMinutes": 240,
+    "notifications": true
+  }
+}
