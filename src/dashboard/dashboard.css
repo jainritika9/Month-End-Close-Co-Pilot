@@ -14,23 +14,9 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12161d;
-    --surface: #1b212b;
-    --text: #e6e9ee;
-    --muted: #97a3b3;
-    --border: #2d3542;
-    --track: #2a313d;
-    --accent: #4da3ff;
-    --ok: #5cb860;
-    --warn: #ffab2e;
-    --bad: #ef5350;
-    --info: #90a4ae;
-    --shadow: none;
-    color-scheme: dark;
-  }
-}
+/* Always light, regardless of the OS/browser color scheme - dark mode support was dropped by
+   request. To bring it back, wrap this file's dark palette in
+   @media (prefers-color-scheme: dark) { :root { ... } } again. */
 
 * { box-sizing: border-box; }
 

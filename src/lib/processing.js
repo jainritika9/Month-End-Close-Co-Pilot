@@ -170,26 +170,23 @@ export function analyzeAccruals(rows, source, thresholds, today) {
 
 // ---------- Alerts ----------
 
-/** Joins up to `max` names, e.g. "A, B, C +172 more", so an alert can't grow one line per item. */
-function summarizeNames(names, max = 5) {
-  if (names.length <= max) return names.join(', ');
-  return `${names.slice(0, max).join(', ')} +${names.length - max} more`;
-}
-
 export function buildAlerts(summary, thresholds) {
   const alerts = [];
   const { checklist, unposted, grir, accruals } = summary;
 
   if (checklist) {
+    // Counts only, deliberately - a real close can have hundreds of open items (e.g. an old,
+    // never-closed batch of EAM inspection lots), and naming them all here would make this list
+    // unreadable. Open the checklist card and filter by state to see which ones.
     if (checklist.error) {
-      const names = checklist.items.filter((t) => t.state === 'error').map((t) => t.name);
       alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.error} close task(s) failed`,
-        detail: summarizeNames(names) });
+        detail: 'Open the checklist and filter by Error to see which ones.' });
     }
     if (checklist.overdue) {
-      const names = checklist.items.filter((t) => t.state === 'overdue').map((t) => `${t.name} (${t.owner || 'unassigned'})`);
-      alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.overdue} close task(s) overdue`,
-        detail: summarizeNames(names) });
+      const detail = checklist.dueDateIsAge
+        ? `Open longer than ${thresholds.checklistSlaDays ?? 0} days`
+        : 'Past their due date';
+      alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.overdue} close task(s) overdue`, detail });
     }
   }
   if (unposted?.count) {

@@ -136,14 +136,23 @@ test('accruals: missing, variance within/over tolerance, overdue', () => {
   assert.equal(r.missingAmount, 1000);
 });
 
-test('buildAlerts caps how many item names an alert detail lists, with a "+N more"', () => {
+test('buildAlerts never names individual checklist items, however many there are', () => {
+  // A real close can have hundreds of open items (e.g. an old EAM backlog) - the alert must stay
+  // a one-line count, not grow into a list of names.
   const items = Array.from({ length: 175 }, (_, i) => ({ state: 'overdue', name: `Inspection lot ${i}`, owner: '' }));
-  const alerts = buildAlerts({ checklist: { error: 0, overdue: 175, items } }, {});
+  const alerts = buildAlerts({ checklist: { error: 0, overdue: 175, items, dueDateIsAge: true } }, { checklistSlaDays: 10 });
   const alert = alerts.find((a) => a.title === '175 close task(s) overdue');
   assert.ok(alert, 'the overdue alert fires with the full count in its title');
-  assert.equal((alert.detail.match(/Inspection lot/g) ?? []).length, 5, 'detail lists only 5 items');
-  assert.match(alert.detail, /\+170 more$/);
-  assert.match(alert.detail, /\(unassigned\)/, 'a blank owner falls back to "unassigned", not "()"');
+  assert.doesNotMatch(alert.detail, /Inspection lot/, 'no item names in the detail line');
+  assert.equal(alert.detail, 'Open longer than 10 days');
+});
+
+test('buildAlerts describes overdue checklist items differently for the two due-date semantics', () => {
+  const base = { checklist: { error: 0, overdue: 2, items: [] } };
+  const age = buildAlerts({ checklist: { ...base.checklist, dueDateIsAge: true } }, { checklistSlaDays: 7 });
+  assert.equal(age[0].detail, 'Open longer than 7 days');
+  const literal = buildAlerts({ checklist: { ...base.checklist, dueDateIsAge: false } }, {});
+  assert.equal(literal[0].detail, 'Past their due date');
 });
 
 test('buildSnapshot on demo data produces all sections and sorted alerts', () => {
