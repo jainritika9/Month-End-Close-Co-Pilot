@@ -45,16 +45,22 @@ function mainCurrency(items) {
 
 // ---------- Per-source analysis ----------
 
-export function analyzeChecklist(rows, source, today) {
+export function analyzeChecklist(rows, source, today, thresholds = {}) {
   const done = new Set((source.statusValues?.done ?? []).map((s) => s.toUpperCase()));
   const error = new Set((source.statusValues?.error ?? []).map((s) => s.toUpperCase()));
+  const slaDays = thresholds.checklistSlaDays ?? 0;
   const tasks = normalize(rows, source.fields).map((t) => {
     const status = String(t.status ?? '').toUpperCase();
     const dueDate = parseSapDate(t.dueDate);
     let state = 'open';
     if (done.has(status)) state = 'done';
     else if (error.has(status)) state = 'error';
-    else if (dueDate && daysBetween(dueDate, today) > 0) state = 'overdue';
+    else if (dueDate) {
+      // Some sources (e.g. EAM inspection lots) have no real due date; dueDateIsAge means the
+      // date is really "created on", so overdue = open longer than the SLA, not "past a due date".
+      const overdue = source.dueDateIsAge ? daysBetween(dueDate, today) > slaDays : daysBetween(dueDate, today) > 0;
+      if (overdue) state = 'overdue';
+    }
     return { ...t, dueDate, state };
   });
   const count = (s) => tasks.filter((t) => t.state === s).length;
@@ -67,6 +73,9 @@ export function analyzeChecklist(rows, source, today) {
     overdue: count('overdue'),
     error: count('error'),
     completionPct: total ? Math.round((count('done') / total) * 100) : 0,
+    // Lets the dashboard label the date column "Created" instead of "Due" for sources where
+    // dueDate really means "created on" (see the comment above).
+    dueDateIsAge: !!source.dueDateIsAge,
   };
 }
 
@@ -164,7 +173,7 @@ export function buildAlerts(summary, thresholds) {
     }
     if (checklist.overdue) {
       alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.overdue} close task(s) overdue`,
-        detail: checklist.items.filter((t) => t.state === 'overdue').map((t) => `${t.name} (${t.owner ?? 'unassigned'})`).join(', ') });
+        detail: checklist.items.filter((t) => t.state === 'overdue').map((t) => `${t.name} (${t.owner || 'unassigned'})`).join(', ') });
     }
   }
   if (unposted?.count) {
@@ -206,7 +215,7 @@ export function buildSnapshot(raw, config, today = new Date()) {
     if (raw[key] instanceof Error) errors[key] = raw[key].message;
     else if (raw[key]) summary[key] = fn(raw[key]);
   };
-  run('checklist', (r) => analyzeChecklist(r, sources.checklist, today));
+  run('checklist', (r) => analyzeChecklist(r, sources.checklist, today, thresholds));
   run('unposted', (r) => analyzeUnposted(r, sources.unposted, thresholds, today));
   run('grir', (r) => analyzeGrir(r, sources.grir, thresholds, today));
   run('accruals', (r) => analyzeAccruals(r, sources.accruals, thresholds, today));

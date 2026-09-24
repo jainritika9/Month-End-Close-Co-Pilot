@@ -42,11 +42,10 @@
           "C",
           "COMPLETED"
         ],
-        "error": [
-          "E",
-          "ERROR"
-        ]
-      }
+        "error": []
+      },
+      "_comment": "This source is EAM inspection-lot status (see abap/ztf_eam_checklist_status.ddls.asddls), not a hand-maintained task list, so there is no 'failed' state - only open ('O') or closed ('C'). PlannedEndDate is the lot's creation date, not a real due date; dueDateIsAge tells the extension to treat it that way (overdue = open longer than thresholds.checklistSlaDays) instead of comparing it to today as a due date.",
+      "dueDateIsAge": true
     },
     "unposted": {
       "label": "Unposted / parked documents",
@@ -99,6 +98,7 @@
     }
   },
   "thresholds": {
+    "checklistSlaDays": 10,
     "grirAgingDays": 30,
     "grirMinDifference": 1000,
     "unpostedMinAmount": 0,

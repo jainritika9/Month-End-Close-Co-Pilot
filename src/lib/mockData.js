@@ -19,21 +19,25 @@ export function mockRaw(config, today = new Date()) {
   const s = config.sources;
   const d = (off) => odataDate(today, off);
 
+  // Shaped like ZI_R2R_CloseTask's EAM data: one row per inspection lot, no owner field, and
+  // status is only ever 'C' (closed - a Usage Decision was made) or 'O' (open). dueDate here
+  // stands in for the lot's creation date (see config.sources.checklist.dueDateIsAge) - "overdue"
+  // means open longer than thresholds.checklistSlaDays (10), not "past a due date".
   const checklist = [
-    ['Open new posting period', 'A. Meyer', 'COMPLETED', -6, 'Preparation'],
-    ['Run foreign currency valuation', 'J. Chen', 'COMPLETED', -3, 'Valuation'],
-    ['Post depreciation run', 'J. Chen', 'COMPLETED', -2, 'Assets'],
-    ['Settle internal orders', 'P. Novak', 'ERROR', -1, 'Controlling'],
-    ['GR/IR clearing and reclassification', 'S. Rao', 'IN_PROCESS', -1, 'Payables'],
-    ['Post payroll accruals', 'L. Garcia', 'IN_PROCESS', 0, 'Accruals'],
-    ['Intercompany reconciliation', 'M. Okafor', 'NOT_STARTED', 1, 'Intercompany'],
-    ['Bank reconciliation', 'A. Meyer', 'COMPLETED', -1, 'Cash'],
-    ['Run cost allocations', 'P. Novak', 'NOT_STARTED', 2, 'Controlling'],
-    ['Close MM period', 'S. Rao', 'COMPLETED', -4, 'Preparation'],
-    ['Review balance sheet reconciliations', 'L. Garcia', 'NOT_STARTED', 3, 'Review'],
-    ['Lock posting period', 'A. Meyer', 'NOT_STARTED', 4, 'Closing'],
-  ].map(([name, owner, status, due, category], i) => ({
-    id: `T${String(i + 1).padStart(3, '0')}`, name, owner, status, dueDate: d(due), category,
+    ['C', -25, 'Incoming inspection'],
+    ['C', -20, 'In-process inspection'],
+    ['C', -18, 'Final inspection'],
+    ['O', -15, 'Final inspection'], // open 15d > SLA -> overdue
+    ['O', -14, 'In-process inspection'], // overdue
+    ['O', -3, 'Incoming inspection'], // within SLA -> open
+    ['O', -1, 'Final inspection'], // open
+    ['C', -8, 'Incoming inspection'],
+    ['O', -12, 'Final inspection'], // overdue
+    ['C', -6, 'In-process inspection'],
+    ['O', -2, 'Incoming inspection'], // open
+    ['C', -22, 'Final inspection'],
+  ].map(([status, off, category], i) => ({
+    id: `${10000231 + i}`, name: `Inspection lot ${10000231 + i}`, owner: '', status, dueDate: d(off), category,
   }));
 
   const unposted = [

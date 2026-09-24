@@ -39,8 +39,10 @@ test('daysBetween counts calendar days', () => {
   assert.equal(daysBetween(null, today), null);
 });
 
-test('checklist states: done, error, overdue, open', () => {
-  const src = config.sources.checklist;
+test('checklist states: done, error, overdue, open (generic due-date semantics)', () => {
+  // A self-contained source, decoupled from the live config's EAM-shaped checklist below, so this
+  // keeps testing the generic "due date in the future, overdue once it's past" behavior.
+  const src = { fields: config.sources.checklist.fields, statusValues: { done: ['COMPLETED'], error: ['ERROR'] } };
   const rows = [
     { TaskID: '1', TaskName: 'A', Status: 'COMPLETED', PlannedEndDate: day(-5) },
     { TaskID: '2', TaskName: 'B', Status: 'ERROR', PlannedEndDate: day(1) },
@@ -50,6 +52,20 @@ test('checklist states: done, error, overdue, open', () => {
   const r = analyzeChecklist(rows, src, today);
   assert.deepEqual(r.items.map((t) => t.state), ['done', 'error', 'overdue', 'open']);
   assert.equal(r.completionPct, 25);
+});
+
+test('checklist dueDateIsAge: PlannedEndDate is treated as "created on", overdue = older than the SLA', () => {
+  // This is the real config.sources.checklist shape (EAM inspection lots): no error state, and
+  // dueDateIsAge is on.
+  const src = config.sources.checklist;
+  assert.equal(src.dueDateIsAge, true);
+  const rows = [
+    { TaskID: '1', TaskName: 'Old open lot', Status: 'O', PlannedEndDate: day(-15) },
+    { TaskID: '2', TaskName: 'Recent open lot', Status: 'O', PlannedEndDate: day(-2) },
+    { TaskID: '3', TaskName: 'Closed long ago', Status: 'C', PlannedEndDate: day(-30) },
+  ];
+  const r = analyzeChecklist(rows, src, today, { checklistSlaDays: 10 });
+  assert.deepEqual(r.items.map((t) => t.state), ['overdue', 'open', 'done']);
 });
 
 test('unposted documents are filtered by threshold and sorted by amount', () => {
@@ -116,7 +132,10 @@ test('buildSnapshot on demo data produces all sections and sorted alerts', () =>
   assert.ok(snap.alerts.length > 0);
   const rank = { high: 0, medium: 1, low: 2 };
   for (let i = 1; i < snap.alerts.length; i++) assert.ok(rank[snap.alerts[i - 1].severity] <= rank[snap.alerts[i].severity]);
-  assert.equal(snap.summary.checklist.error, 1);
+  // EAM inspection lots have no "failed" state (see analyzeChecklist's dueDateIsAge comment).
+  assert.equal(snap.summary.checklist.error, 0);
+  assert.equal(snap.summary.checklist.overdue, 3);
+  assert.equal(snap.summary.checklist.completionPct, 50);
   assert.equal(snap.summary.accruals.missingCount, 3);
 });
 

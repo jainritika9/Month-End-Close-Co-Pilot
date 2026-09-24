@@ -140,18 +140,19 @@ function renderChecklist(card, c) {
   );
   filterBar(card, 'checklist', [['all', `All (${c.total})`], ['open', 'Open'], ['overdue', 'Overdue'], ['error', 'Error'], ['done', 'Done']]);
   const rows = c.items.filter((t) => filters.checklist === 'all' || t.state === filters.checklist);
+  const dateLabel = c.dueDateIsAge ? 'Created' : 'Due';
   card.querySelector('.table-slot').replaceChildren(
     table(
       [
         { label: 'Task', value: (t) => t.name },
-        { label: 'Owner', value: (t) => t.owner },
-        { label: 'Due', value: (t) => date(t.dueDate) },
+        { label: 'Owner', value: (t) => t.owner || '—' },
+        { label: dateLabel, value: (t) => date(t.dueDate) },
         { label: 'Status', value: (t) => pill(t.state, t.state) },
       ],
       rows,
       {
         onRow: (t) => openDrawer(t.name, {
-          Task: t.id, Category: t.category, Owner: t.owner, 'Due date': date(t.dueDate),
+          Task: t.id, Category: t.category, Owner: t.owner || '—', [`${dateLabel} date`]: date(t.dueDate),
           'SAP status': t.status, State: pill(t.state, t.state),
         }, t._raw),
       },
