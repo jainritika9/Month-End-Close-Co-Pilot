@@ -6,6 +6,7 @@
   "description": "Chrome extension: month-end close co-pilot dashboard on top of SAP OData APIs.",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "icons": "node tools/make-icons.mjs"
+    "icons": "node tools/make-icons.mjs",
+    "dashboard": "node web/server.mjs --open"
   }
 }

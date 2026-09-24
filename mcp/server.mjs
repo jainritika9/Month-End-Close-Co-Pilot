@@ -163,6 +163,34 @@ const TOOLS = [
     },
   },
   {
+    name: 'open_dashboard',
+    description:
+      'Starts the full visual close dashboard (KPI tiles, charts, filterable tables, drill-down) as a local web ' +
+      'page and returns its http://localhost URL. Use when the user wants to see or open the dashboard rather ' +
+      'than a text answer. The page stays available while this Claude Code session is running.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        company_code: periodProps.company_code,
+        fiscal_year: periodProps.fiscal_year,
+        period: periodProps.period,
+      },
+      additionalProperties: false,
+    },
+    async run(a) {
+      // Loaded on demand so plain tool calls never open a port.
+      const { startDashboard } = await import('../web/server.mjs');
+      const url = new URL(await startDashboard());
+      if (a.company_code) url.searchParams.set('company_code', a.company_code);
+      if (a.period) url.searchParams.set('period', String(a.period).padStart(3, '0'));
+      if (a.fiscal_year) url.searchParams.set('fiscal_year', a.fiscal_year);
+      return {
+        url: url.href,
+        note: 'Local page on this computer only (127.0.0.1). It stops when this Claude Code session ends; for a standalone server run "npm run dashboard" in the co-pilot folder.',
+      };
+    },
+  },
+  {
     name: 'test_sap_connection',
     description: 'Checks that the configured SAP system is reachable and the credentials work. Use when other tools fail.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },

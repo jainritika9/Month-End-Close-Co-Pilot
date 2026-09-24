@@ -57,6 +57,8 @@ h2 { font-size: 15px; margin: 0 0 12px; }
   border-bottom: 1px solid var(--border);
 }
 .brand, .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.period-form { display: flex; gap: 6px; align-items: center; }
+.period-form input { font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
 
 main { padding: 20px 24px 48px; max-width: 1440px; margin: 0 auto; }
 

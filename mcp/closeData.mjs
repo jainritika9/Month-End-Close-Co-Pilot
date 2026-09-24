@@ -46,7 +46,21 @@ export async function loadConfig() {
   return deepMerge(config, overrides);
 }
 
+// Credentials entered on the local web dashboard's sign-in form. Memory only: gone when the
+// process exits, never written to disk.
+let sessionCredentials = null;
+
+export function setSessionCredentials(creds) {
+  sessionCredentials = creds;
+  cache = null;
+}
+
+export function hasCredentials() {
+  return credentials() !== null;
+}
+
 function credentials() {
+  if (sessionCredentials) return sessionCredentials;
   const user = option('SAP_USER', 'sap_user');
   const password = option('SAP_PASSWORD', 'sap_password');
   return user && password ? { user, password } : null;
@@ -57,7 +71,7 @@ async function fetchJson(url, authHeader, timeoutMs) {
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { headers: { Authorization: authHeader, Accept: 'application/json' }, signal: ctrl.signal });
-    if (res.status === 401) throw new Error('SAP rejected the user name or password (401)');
+    if (res.status === 401) throw authError('SAP rejected the user name or password (401)');
     if (res.status === 403) throw new Error('SAP returned 403 - check S_SERVICE / F_BKPF_BUK authorizations (SU53)');
     if (!res.ok) {
       let detail = '';
@@ -91,6 +105,11 @@ async function fetchSource(config, source, vars, authHeader, maxPages = 50) {
 
 let cache = null;
 
+/** Error meaning "sign in (again)": missing or rejected SAP credentials. */
+export function authError(message) {
+  return Object.assign(new Error(message), { code: 'SAP_AUTH' });
+}
+
 /**
  * Returns the analysed close snapshot for a company code / period, fetched live (or demo data).
  * `overrides` may set companyCode, fiscalYear, period ("8" or "008"); `refresh` bypasses the cache.
@@ -112,7 +131,7 @@ export async function getSnapshot({ companyCode, fiscalYear, period, refresh = f
   } else {
     const creds = credentials();
     if (!creds) {
-      throw new Error(
+      throw authError(
         'SAP credentials are not configured. Set the plugin options sap_user and sap_password ' +
           '(/plugin → close-copilot → configure), or enable demo_mode to try it with sample data.',
       );
@@ -121,7 +140,7 @@ export async function getSnapshot({ companyCode, fiscalYear, period, refresh = f
     const results = await Promise.allSettled(
       SOURCE_KEYS.map((k) => fetchSource(config, config.sources[k], vars, authHeader)),
     );
-    const authFailure = results.find((r) => r.status === 'rejected' && /\b401\b/.test(r.reason?.message));
+    const authFailure = results.find((r) => r.status === 'rejected' && r.reason?.code === 'SAP_AUTH');
     if (authFailure) throw authFailure.reason;
     raw = Object.fromEntries(
       SOURCE_KEYS.map((k, i) => [k, results[i].status === 'fulfilled' ? results[i].value : results[i].reason]),
@@ -139,17 +158,21 @@ export async function getSnapshot({ companyCode, fiscalYear, period, refresh = f
       syncedAt: snapshot.syncedAt,
     },
     thresholds: config.thresholds,
+    demo: !!config.demoMode,
     ...snapshot,
   };
   cache = { key, at: Date.now(), value };
   return value;
 }
 
-/** Checks connectivity and credentials with one cheap call to the login-check service. */
-export async function testConnection() {
+/**
+ * Checks connectivity and credentials with one cheap call to the login-check service.
+ * `candidate` tests credentials that are not stored yet (the web sign-in form).
+ */
+export async function testConnection(candidate) {
   const config = await loadConfig();
   if (config.demoMode) return { ok: true, demoData: true, message: 'Demo mode is on - no SAP connection is used.' };
-  const creds = credentials();
+  const creds = candidate ?? credentials();
   if (!creds) return { ok: false, message: 'sap_user / sap_password plugin options are not set.' };
   const url = new URL(config.auth.basic.pingPath, config.sap.proxyUrl || config.sap.baseUrl);
   url.searchParams.set('sap-client', config.sap.client);

@@ -49,7 +49,7 @@ test('MCP server: handshake, tool list and demo-data tool calls', async () => {
     const names = list.result.tools.map((t) => t.name);
     assert.deepEqual(names, [
       'get_close_status', 'list_checklist_tasks', 'list_unposted_documents',
-      'list_grir_items', 'list_accruals', 'test_sap_connection',
+      'list_grir_items', 'list_accruals', 'open_dashboard', 'test_sap_connection',
     ]);
     for (const t of list.result.tools) assert.equal(t.inputSchema.type, 'object');
 
