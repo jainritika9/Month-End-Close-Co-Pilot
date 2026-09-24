@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "sap-close": {
+      "command": "node",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/mcp/server.mjs"],
+      "env": {
+        "SAP_DEMO_MODE": "${CLOSE_COPILOT_DEMO_MODE:-true}",
+        "SAP_BASE_URL": "${CLOSE_COPILOT_SAP_BASE_URL:-}",
+        "SAP_CLIENT": "${CLOSE_COPILOT_SAP_CLIENT:-100}",
+        "SAP_COMPANY_CODE": "${CLOSE_COPILOT_COMPANY_CODE:-7827}",
+        "SAP_FISCAL_YEAR": "${CLOSE_COPILOT_FISCAL_YEAR:-2026}",
+        "SAP_USER": "${CLOSE_COPILOT_SAP_USER:-}",
+        "SAP_PASSWORD": "${CLOSE_COPILOT_SAP_PASSWORD:-}"
+      }
+    }
+  }
+}

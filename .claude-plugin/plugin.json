@@ -1,0 +1,87 @@
+{
+  "name": "close-copilot",
+  "displayName": "Month-End Close Co-Pilot",
+  "version": "1.0.0",
+  "description": "Ask Claude about the SAP month-end close: checklist status, parked documents, open GR/IR and missing accruals, read live from SAP OData.",
+  "author": {
+    "name": "Ritika Jain"
+  },
+  "keywords": [
+    "sap",
+    "s4hana",
+    "month-end close",
+    "finance",
+    "gr/ir",
+    "accruals"
+  ],
+  "commands": [
+    "./.claude/commands/"
+  ],
+  "userConfig": {
+    "sap_base_url": {
+      "type": "string",
+      "title": "SAP base URL",
+      "description": "Scheme, host and port only, e.g. http://sapserver:8000",
+      "default": "http://vhc2jq4rci.rise.ccbji.co.jp:8000"
+    },
+    "sap_client": {
+      "type": "string",
+      "title": "SAP client",
+      "description": "3-digit client (sap-client)",
+      "default": "100"
+    },
+    "company_code": {
+      "type": "string",
+      "title": "Company code",
+      "description": "Default company code for close questions",
+      "default": "7827"
+    },
+    "fiscal_year": {
+      "type": "string",
+      "title": "Fiscal year",
+      "description": "Fixed fiscal year; leave empty to use the current one",
+      "default": "2026"
+    },
+    "sap_user": {
+      "type": "string",
+      "title": "SAP user",
+      "description": "SAP user for Basic authentication"
+    },
+    "sap_password": {
+      "type": "string",
+      "title": "SAP password",
+      "description": "Stored in Claude Code's secure credential storage, never in settings.json",
+      "sensitive": true
+    },
+    "demo_mode": {
+      "type": "boolean",
+      "title": "Demo mode",
+      "description": "Use built-in sample data instead of calling SAP",
+      "default": false
+    },
+    "config_file": {
+      "type": "file",
+      "title": "Config file (optional)",
+      "description": "JSON exported from the Chrome extension's Settings page, to reuse its data sources and thresholds",
+      "required": false
+    }
+  },
+  "mcpServers": {
+    "sap-close": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs"
+      ],
+      "env": {
+        "SAP_BASE_URL": "${user_config.sap_base_url}",
+        "SAP_CLIENT": "${user_config.sap_client}",
+        "SAP_COMPANY_CODE": "${user_config.company_code}",
+        "SAP_FISCAL_YEAR": "${user_config.fiscal_year}",
+        "SAP_USER": "${user_config.sap_user}",
+        "SAP_PASSWORD": "${user_config.sap_password}",
+        "SAP_DEMO_MODE": "${user_config.demo_mode}",
+        "SAP_COPILOT_CONFIG": "${user_config.config_file}"
+      }
+    }
+  }
+}

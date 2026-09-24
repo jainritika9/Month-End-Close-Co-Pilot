@@ -61,10 +61,60 @@ tools/make-icons.mjs       regenerates the icons
 
 **Why no Chart.js/D3:** Manifest V3 doesn't allow remotely hosted scripts, and vendoring a library would add a build step. The dashboard only needs donuts and bars, so `charts.js` draws them as themed SVG (light and dark) in about 100 lines. If you need richer charts later, you can put a copy of `chart.umd.min.js` in the extension folder and import it.
 
+## Claude Code plugin
+
+The same repository is also a Claude Code plugin, `close-copilot`. It lets you ask Claude about the close in plain language, e.g. "which GR/IR items over 90 days are with Nordic Steel?". Claude answers from live SAP data using the same OData services, analysis rules and thresholds as the dashboard.
+
+**Install** (in Claude Code, from the folder that contains this repo, or with the full path):
+
+```
+/plugin marketplace add ./Agent
+/plugin install close-copilot@mwc-finance
+```
+
+When you enable it, Claude Code asks for the plugin options: SAP base URL, client, company code, fiscal year, SAP user and password, and demo mode. The password is marked sensitive, so it goes to Claude Code's secure credential storage, not `settings.json`. To change the options later, run `/plugin`, pick close-copilot and choose configure. To reuse data-source paths or thresholds you changed in the Chrome extension, export them from its Settings page and set the export as the plugin's **Config file** option.
+
+**Slash commands**
+
+| Command | What it does |
+|---|---|
+| `/close-copilot:close-status [cc] [period]` | Overall status, what needs attention now, key numbers |
+| `/close-copilot:grir-review [cc] [days] [supplier]` | Open GR/IR, grouped by "received, not invoiced" and "invoiced, not received", with actions |
+| `/close-copilot:accrual-check [cc] [period]` | Missing and off-plan accruals, with draft postings to review |
+| `/close-copilot:parked-docs [cc] [days] [amount]` | Parked documents per creator |
+| `/close-copilot:close-report [cc] [period]` | Management-ready status report |
+
+**MCP tools** (server `sap-close`, [mcp/server.mjs](mcp/server.mjs)). Claude also calls these directly when you ask a free-form question:
+
+- `get_close_status`
+- `list_checklist_tasks`
+- `list_unposted_documents`
+- `list_grir_items`
+- `list_accruals`
+- `test_sap_connection`
+
+The server has no npm dependencies. It reads SAP with Basic authentication and caches each result for 2 minutes. The tools only read data; none of them post anything in SAP.
+
+### Claude Code on the web (claude.ai/code)
+
+Cloud sessions don't install plugins from your machine or from the repo's settings. Instead, the repository provides the same pieces directly, and a cloud session opened on this repo loads them automatically:
+
+- [.mcp.json](.mcp.json) starts the `sap-close` server.
+- [.claude/commands/](.claude/commands/) provides the commands without the plugin prefix: `/close-status`, `/grir-review`, `/accrual-check`, `/parked-docs` and `/close-report`.
+
+The plugin and the web setup share these command files.
+
+**Web sessions use demo data by default.** The SAP system resolves only on the corporate network (a private `10.x` address), so Anthropic's cloud machines can't reach it. There are 2 ways to get live data on the web:
+
+1. **A self-hosted environment** running inside the corporate network. Set `CLOSE_COPILOT_DEMO_MODE=false`, `CLOSE_COPILOT_SAP_BASE_URL`, `CLOSE_COPILOT_SAP_USER` and `CLOSE_COPILOT_SAP_PASSWORD` in its environment.
+2. **Exposing the 4 OData services publicly** through SAP BTP (Cloud Connector plus API Management), then adding that host under the environment's **Custom** network access.
+
+Don't put the SAP password in a shared cloud environment. Anyone who uses the environment can read its variables.
+
 ## Development
 
 ```
-npm test          # runs the unit tests (Node 18+)
+npm test          # runs the unit tests and the MCP server protocol test (Node 18+)
 npm run icons     # regenerates the PNG icons
 ```
 

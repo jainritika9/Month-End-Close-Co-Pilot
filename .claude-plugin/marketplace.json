@@ -1,0 +1,16 @@
+{
+  "name": "mwc-finance",
+  "owner": {
+    "name": "Ritika Jain"
+  },
+  "metadata": {
+    "description": "MWC finance plugins for SAP S/4HANA month-end close."
+  },
+  "plugins": [
+    {
+      "name": "close-copilot",
+      "source": "./",
+      "description": "Month-end close co-pilot for SAP S/4HANA: close status, parked documents, GR/IR and accruals."
+    }
+  ]
+}
