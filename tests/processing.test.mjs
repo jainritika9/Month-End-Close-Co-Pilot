@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  parseSapDate, parseAmount, daysBetween, analyzeChecklist, analyzeUnposted, analyzeGrir,
-  analyzeAccruals, buildSnapshot,
+  parseSapDate, parseAmount, daysBetween, normalize, analyzeChecklist, analyzeUnposted, analyzeGrir,
+  analyzeAccruals, buildSnapshot, buildAlerts,
 } from '../src/lib/processing.js';
 import { parseODataPage, buildUrl, fillPlaceholders } from '../src/lib/sapClient.js';
 import { deepMerge, periodVars, stripSecrets, requiredOrigins } from '../src/lib/config.js';
@@ -37,6 +37,16 @@ test('parseAmount handles strings, commas and junk', () => {
 test('daysBetween counts calendar days', () => {
   assert.equal(daysBetween(new Date('2026-09-20T23:00:00Z'), today), 3);
   assert.equal(daysBetween(null, today), null);
+});
+
+test('normalize trims space-padded ABAP CHAR values but leaves non-strings alone', () => {
+  // e.g. cast('' as abap.char(40)) arrives over OData as 40 spaces, not ''.
+  const rows = normalize([{ NAME: '  Jane Doe   ', BLANK: '                                        ', AMT: 12.5, NIL: null }],
+    { name: 'NAME', owner: 'BLANK', amount: 'AMT', nil: 'NIL' });
+  assert.equal(rows[0].name, 'Jane Doe');
+  assert.equal(rows[0].owner, '');
+  assert.equal(rows[0].amount, 12.5);
+  assert.equal(rows[0].nil, null);
 });
 
 test('checklist states: done, error, overdue, open (generic due-date semantics)', () => {
@@ -124,6 +134,16 @@ test('accruals: missing, variance within/over tolerance, overdue', () => {
   assert.equal(r.items[0].overdue, true);
   assert.equal(r.items[2].overdue, false);
   assert.equal(r.missingAmount, 1000);
+});
+
+test('buildAlerts caps how many item names an alert detail lists, with a "+N more"', () => {
+  const items = Array.from({ length: 175 }, (_, i) => ({ state: 'overdue', name: `Inspection lot ${i}`, owner: '' }));
+  const alerts = buildAlerts({ checklist: { error: 0, overdue: 175, items } }, {});
+  const alert = alerts.find((a) => a.title === '175 close task(s) overdue');
+  assert.ok(alert, 'the overdue alert fires with the full count in its title');
+  assert.equal((alert.detail.match(/Inspection lot/g) ?? []).length, 5, 'detail lists only 5 items');
+  assert.match(alert.detail, /\+170 more$/);
+  assert.match(alert.detail, /\(unassigned\)/, 'a blank owner falls back to "unassigned", not "()"');
 });
 
 test('buildSnapshot on demo data produces all sections and sorted alerts', () => {

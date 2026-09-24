@@ -28,11 +28,19 @@ export function daysBetween(date, today) {
   return Math.round((utc(today) - utc(date)) / DAY_MS);
 }
 
-/** Maps SAP field names to internal names as configured in `fields` ({ internal: sapField }). */
+/**
+ * Maps SAP field names to internal names as configured in `fields` ({ internal: sapField }).
+ * Trims string values: ABAP CHAR fields (e.g. a blank one cast to abap.char(40)) arrive over
+ * OData space-padded to their full length, not as '' - without trimming, a blank field reads as
+ * truthy and "empty" checks like `value || fallback` silently fail.
+ */
 export function normalize(rows, fields) {
   return rows.map((row) => {
     const out = { _raw: row };
-    for (const [key, sapField] of Object.entries(fields)) out[key] = row[sapField];
+    for (const [key, sapField] of Object.entries(fields)) {
+      const v = row[sapField];
+      out[key] = typeof v === 'string' ? v.trim() : v;
+    }
     return out;
   });
 }
@@ -162,18 +170,26 @@ export function analyzeAccruals(rows, source, thresholds, today) {
 
 // ---------- Alerts ----------
 
+/** Joins up to `max` names, e.g. "A, B, C +172 more", so an alert can't grow one line per item. */
+function summarizeNames(names, max = 5) {
+  if (names.length <= max) return names.join(', ');
+  return `${names.slice(0, max).join(', ')} +${names.length - max} more`;
+}
+
 export function buildAlerts(summary, thresholds) {
   const alerts = [];
   const { checklist, unposted, grir, accruals } = summary;
 
   if (checklist) {
     if (checklist.error) {
+      const names = checklist.items.filter((t) => t.state === 'error').map((t) => t.name);
       alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.error} close task(s) failed`,
-        detail: checklist.items.filter((t) => t.state === 'error').map((t) => t.name).join(', ') });
+        detail: summarizeNames(names) });
     }
     if (checklist.overdue) {
+      const names = checklist.items.filter((t) => t.state === 'overdue').map((t) => `${t.name} (${t.owner || 'unassigned'})`);
       alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.overdue} close task(s) overdue`,
-        detail: checklist.items.filter((t) => t.state === 'overdue').map((t) => `${t.name} (${t.owner || 'unassigned'})`).join(', ') });
+        detail: summarizeNames(names) });
     }
   }
   if (unposted?.count) {
