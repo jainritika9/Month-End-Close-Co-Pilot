@@ -48,5 +48,15 @@ test('web dashboard server: page, API and access restrictions', async () => {
   }
   assert.equal(await rawGet(base, 'evil.example.com'), 403, 'foreign Host header is rejected');
   assert.equal((await fetch(base, { method: 'DELETE' })).status, 405);
+
+  // Metadata diagnostic endpoint: no service param, invalid name, and demo mode (no real SAP to ask).
+  assert.equal((await fetch(new URL('/api/metadata', base))).status, 400);
+  const badService = await fetch(new URL('/api/metadata?service=../../etc', base));
+  assert.equal(badService.status, 502);
+  assert.match((await badService.json()).error, /Invalid service name/);
+  const demoService = await fetch(new URL('/api/metadata?service=API_INSPECTIONLOT_SRV', base));
+  assert.equal(demoService.status, 502);
+  assert.match((await demoService.json()).error, /Demo mode is on/);
+
   await stopDashboard();
 });

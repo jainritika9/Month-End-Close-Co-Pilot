@@ -29,7 +29,7 @@
       "_comment": "Standard SAP API (API_INSPECTIONLOT_SRV), no custom ABAP - EAM/QM inspection lots. This entity set has no Usage Decision field, so 'join' fetches A_InspLotUsageDecision separately and merges it in by InspectionLot (see sapClient.js's mergeJoinedRows). Field/filter names here are the best-documented ones found (SAP Help Portal + API Business Hub), but weren't checked against this system's own $metadata - if a section shows 'Could not load', that's the first thing to check ($GET .../API_INSPECTIONLOT_SRV/$metadata). No company code exists on an inspection lot; this scopes by sap.plant instead (see Settings). There's no owner field either (nameFromId/statusMeansDoneWhenNonBlank below make up for the fields this API doesn't have - see processing.js's analyzeChecklist).",
       "path": "/sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspectionLot",
       "query": {
-        "$orderby": "CreationDate desc",
+        "$orderby": "InspectionLotCreatedOn desc",
         "$top": "500"
       },
       "join": {
@@ -39,7 +39,7 @@
       "fields": {
         "id": "InspectionLot",
         "status": "InspectionLotUsageDecisionCode",
-        "dueDate": "CreationDate",
+        "dueDate": "InspectionLotCreatedOn",
         "category": "InspectionLotType"
       },
       "statusValues": {

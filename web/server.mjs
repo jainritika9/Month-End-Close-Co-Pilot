@@ -14,7 +14,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 import {
-  getSnapshot, testConnection, setSessionCredentials, hasCredentials, loadConfig,
+  getSnapshot, testConnection, setSessionCredentials, hasCredentials, loadConfig, fetchServiceMetadata,
 } from '../mcp/closeData.mjs';
 import { periodVars } from '../src/lib/config.js';
 
@@ -67,6 +67,21 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
 
   if (url.pathname === '/api/state' && req.method === 'GET') return json(res, 200, await state());
+
+  // Diagnostic only: fetches a service's real $metadata using the signed-in session, so field/
+  // entity names can be checked against the actual system instead of documentation or guesswork.
+  // Not linked from the UI - used via curl/browser at /api/metadata?service=API_NAME.
+  if (url.pathname === '/api/metadata' && req.method === 'GET') {
+    const service = url.searchParams.get('service');
+    if (!service) return json(res, 400, { error: 'service query param required, e.g. API_INSPECTIONLOT_SRV' });
+    try {
+      const xml = await fetchServiceMetadata(service);
+      res.writeHead(200, { 'Content-Type': 'application/xml', 'Cache-Control': 'no-store' });
+      return res.end(xml);
+    } catch (e) {
+      return json(res, e.code === 'SAP_AUTH' ? 401 : 502, { error: e.message });
+    }
+  }
 
   if (url.pathname === '/api/snapshot' && req.method === 'GET') {
     try {

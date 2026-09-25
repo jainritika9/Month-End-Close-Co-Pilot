@@ -104,6 +104,8 @@ This is the same dashboard as the Chrome extension, served as a normal web page 
 
 The server listens on `127.0.0.1` only, so no other computer can open it. The SAP password you enter stays in the server's memory and is never written to disk. SAP is read server-side, so the browser needs no extension and hits no CORS errors. The server is in [web/server.mjs](web/server.mjs). It shares all rendering code with the extension ([src/dashboard/render.js](src/dashboard/render.js)).
 
+**Diagnostic: check a standard API's real field names.** Once signed in on the page, `GET http://localhost:8787/api/metadata?service=<API_NAME>` returns that OData service's real `$metadata` XML, using the signed-in session - useful for confirming field/entity names against your actual system before wiring up a new standard API, instead of relying on documentation alone (see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap) for a case where the documented field name turned out wrong). Not linked from the UI.
+
 This only works in Claude Code **on your PC**. In a claude.ai/code web session, `localhost` is the cloud machine, which your browser can't open.
 
 ### Claude Code on the web (claude.ai/code)

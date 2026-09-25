@@ -55,13 +55,15 @@ Create all objects in one package, e.g. a new `ZMWC_R2R_CLOSE`, on one transport
 - **No single entity carries both "lot exists" and "is it closed".** The Usage Decision (what closes a lot) lives in a separate entity set, `A_InspLotUsageDecision`, keyed by `InspectionLot`. The config's `join` block tells the extension to fetch both and merge them client-side by that key (`mergeJoinedRows` in `src/lib/sapClient.js`) - a lot with no matching Usage Decision row is simply open.
 - **No company code.** An inspection lot isn't tied to a company code the way an FI document is; the closest scoping field is `Plant`. Set **Plant** in Settings, then add `Plant eq '{plant}'` to this source's `$filter` (it isn't filtered by default, so every user sees the same unscoped `$top=500` most-recent lots until you do).
 
-Field names (`InspectionLotUsageDecisionCode`, `CreationDate`, `InspectionLotType`, ...) come from SAP's own API Business Hub / Help Portal documentation, not from testing against this system's `$metadata`. If the checklist section shows "Could not load", check `GET .../API_INSPECTIONLOT_SRV/$metadata` first - a wrong field name in the `fields` mapping just shows up blank (harmless), but a wrong one in `$filter`/`$orderby` causes a real error.
+**Field names verified against this system's real `$metadata`** (fetched live via the web dashboard's `/api/metadata?service=...` diagnostic endpoint - see `web/server.mjs`), not just SAP's public documentation. One name from the docs turned out wrong and was corrected: the creation date field is `InspectionLotCreatedOn`, not `CreationDate`. If the checklist section ever shows "Could not load", re-check with that same endpoint - a wrong field name in the `fields` mapping just shows up blank (harmless), but a wrong one in `$filter`/`$orderby` causes a real error.
 
 Two fields this API doesn't have are made up for in `processing.js`:
 - **No free-text name** - `nameFromId: true` displays "Inspection lot `<id>`" instead.
 - **No fixed "done" code list** - Usage Decision codes are whatever a client's own UD catalog defines, so `statusMeansDoneWhenNonBlank: true` treats *any* code as closed, rather than checking against a specific list like the other sources' `statusValues.done`.
 
 There's still no owner field, same limitation as before.
+
+**Known caveat, found by checking real data:** in this system, sorting all accessible inspection lots by `InspectionLotCreatedOn` descending, the *newest* one is from 2015-05-06 - nothing more recent exists (or is visible to this user) at all. This isn't a bug in the query; it reflects either that QM inspection lots aren't part of this company's live process any more, or that this user's authorization/plant scope only covers old data. Until that's resolved, this section may show stale 2015 data rather than the current period's real state - worth confirming with your QM/Basis team before relying on it for an actual close decision.
 
 ## Verify these at activation
 

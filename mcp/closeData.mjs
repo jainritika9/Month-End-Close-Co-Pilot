@@ -202,6 +202,29 @@ export async function testConnection(candidate) {
   }
 }
 
+/**
+ * Fetches an OData service's raw $metadata XML using the current session, for verifying real
+ * entity/field names against a service's actual definition instead of documentation or guesswork
+ * (e.g. before wiring up a new standard API). `service` must be a bare technical service name
+ * (letters, digits, underscore) - never a full path, so this can't be used to reach anything other
+ * than that service's own $metadata.
+ */
+export async function fetchServiceMetadata(service) {
+  if (!/^[A-Za-z0-9_]+$/.test(service)) throw new Error('Invalid service name');
+  const config = await loadConfig();
+  if (config.demoMode) throw new Error('Demo mode is on - there is no SAP connection to fetch metadata from.');
+  const creds = credentials();
+  if (!creds) throw authError('Not signed in to SAP.');
+  const authHeader = 'Basic ' + Buffer.from(`${creds.user}:${creds.password}`).toString('base64');
+  const url = new URL(`/sap/opu/odata/sap/${service}/$metadata`, config.sap.proxyUrl || config.sap.baseUrl);
+  url.searchParams.set('sap-client', config.sap.client);
+  const res = await fetch(url, { headers: { Authorization: authHeader, Accept: 'application/xml' } });
+  const text = await res.text();
+  if (res.status === 401) throw authError('SAP rejected the user name or password (401).');
+  if (!res.ok) throw new Error(`SAP returned ${res.status} for ${service}: ${text.slice(0, 300)}`);
+  return text;
+}
+
 /** Plain JSON view of an analysed item: SAP raw fields dropped, dates as YYYY-MM-DD. */
 export function slim(item) {
   const out = {};

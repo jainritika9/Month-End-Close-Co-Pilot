@@ -69,15 +69,15 @@ test('checklist states: done, error, overdue, open (generic due-date semantics)'
 
 test('checklist dueDateIsAge + statusMeansDoneWhenNonBlank: the real config.sources.checklist shape', () => {
   // API_INSPECTIONLOT_SRV: no fixed "done" code list (any Usage Decision code closes a lot) and
-  // no due date (CreationDate stands in for it - overdue = older than the SLA).
+  // no due date (InspectionLotCreatedOn stands in for it - overdue = older than the SLA).
   const src = config.sources.checklist;
   assert.equal(src.dueDateIsAge, true);
   assert.equal(src.statusMeansDoneWhenNonBlank, true);
   assert.equal(src.nameFromId, true);
   const rows = [
-    { InspectionLot: '1', InspectionLotUsageDecisionCode: '', CreationDate: day(-15) },
-    { InspectionLot: '2', InspectionLotUsageDecisionCode: '', CreationDate: day(-2) },
-    { InspectionLot: '3', InspectionLotUsageDecisionCode: 'A1', CreationDate: day(-30) },
+    { InspectionLot: '1', InspectionLotUsageDecisionCode: '', InspectionLotCreatedOn: day(-15) },
+    { InspectionLot: '2', InspectionLotUsageDecisionCode: '', InspectionLotCreatedOn: day(-2) },
+    { InspectionLot: '3', InspectionLotUsageDecisionCode: 'A1', InspectionLotCreatedOn: day(-30) },
   ];
   const r = analyzeChecklist(rows, src, today, { checklistSlaDays: 10 });
   assert.deepEqual(r.items.map((t) => t.state), ['overdue', 'open', 'done']);
