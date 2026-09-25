@@ -58,5 +58,23 @@ test('web dashboard server: page, API and access restrictions', async () => {
   assert.equal(demoService.status, 502);
   assert.match((await demoService.json()).error, /Demo mode is on/);
 
+  // Sample-data diagnostic endpoint: missing params, invalid entity name, and demo mode.
+  assert.equal((await fetch(new URL('/api/sample?service=API_INSPECTIONLOT_SRV', base))).status, 400);
+  const badEntity = await fetch(new URL('/api/sample?service=API_INSPECTIONLOT_SRV&entity=../../etc', base));
+  assert.equal(badEntity.status, 502);
+  assert.match((await badEntity.json()).error, /Invalid entity set name/);
+  const demoSample = await fetch(new URL('/api/sample?service=API_INSPECTIONLOT_SRV&entity=A_InspectionLot', base));
+  assert.equal(demoSample.status, 502);
+  assert.match((await demoSample.json()).error, /Demo mode is on/);
+
+  // Catalog-search diagnostic endpoint: no keyword, invalid characters, and demo mode.
+  assert.equal((await fetch(new URL('/api/catalog', base))).status, 400);
+  const badKeyword = await fetch(new URL(`/api/catalog?keyword=${encodeURIComponent("'; DROP")}`, base));
+  assert.equal(badKeyword.status, 502);
+  assert.match((await badKeyword.json()).error, /Invalid keyword/);
+  const demoCatalog = await fetch(new URL('/api/catalog?keyword=PARK', base));
+  assert.equal(demoCatalog.status, 502);
+  assert.match((await demoCatalog.json()).error, /Demo mode is on/);
+
   await stopDashboard();
 });

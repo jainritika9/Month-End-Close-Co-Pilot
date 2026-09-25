@@ -104,7 +104,12 @@ This is the same dashboard as the Chrome extension, served as a normal web page 
 
 The server listens on `127.0.0.1` only, so no other computer can open it. The SAP password you enter stays in the server's memory and is never written to disk. SAP is read server-side, so the browser needs no extension and hits no CORS errors. The server is in [web/server.mjs](web/server.mjs). It shares all rendering code with the extension ([src/dashboard/render.js](src/dashboard/render.js)).
 
-**Diagnostic: check a standard API's real field names and data.** Once signed in on the page, `GET http://localhost:8787/api/metadata?service=<API_NAME>` returns that OData service's real `$metadata` XML, using the signed-in session - useful for confirming field/entity names against your actual system before wiring up a new standard API, instead of relying on documentation alone (see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap) for a case where the documented field name turned out wrong). `GET http://localhost:8787/api/sample?service=<API_NAME>&entity=<EntitySet>&top=5&filter=<$filter>` returns a few real rows the same way, for checking that fields the schema promises are actually populated with current data (see [abap/README.md](abap/README.md#open-grir-items-standard-api-no-custom-abap) for how this found the real GR/IR clearing account). Neither is linked from the UI.
+**Diagnostic: check what standard APIs exist and whether they're real.** Once signed in on the page:
+- `GET http://localhost:8787/api/catalog?keyword=<TEXT>` searches SAP Gateway's own service catalog for registered services whose technical name contains `<TEXT>` - a way to find a candidate standard API from what's actually registered in your system, instead of guessing a technical service name and checking each one for a 404.
+- `GET http://localhost:8787/api/metadata?service=<API_NAME>` returns that service's real `$metadata` XML - useful for confirming field/entity names before wiring one up, instead of relying on documentation alone (see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap) for a case where the documented field name turned out wrong).
+- `GET http://localhost:8787/api/sample?service=<API_NAME>&entity=<EntitySet>&top=5&filter=<$filter>` returns a few real rows, for checking that fields the schema promises are actually populated with current data (see [abap/README.md](abap/README.md#open-grir-items-standard-api-no-custom-abap) for how this found the real GR/IR clearing account).
+
+None of the three are linked from the UI.
 
 This only works in Claude Code **on your PC**. In a claude.ai/code web session, `localhost` is the cloud machine, which your browser can't open.
 

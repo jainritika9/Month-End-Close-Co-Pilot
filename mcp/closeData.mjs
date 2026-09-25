@@ -252,6 +252,32 @@ export async function fetchServiceSample(service, entitySet, { top = 5, filter }
   return text;
 }
 
+/**
+ * Searches SAP Gateway's own service catalog for registered services whose technical name or
+ * description contains `keyword`, using the current session. Lets a plausible standard API be
+ * found by what's actually registered in this system, instead of guessing technical service names
+ * one at a time and checking each for a 404 (see abap/README.md's GR/IR section for how many
+ * guesses that took last time).
+ */
+export async function searchServiceCatalog(keyword) {
+  if (!/^[A-Za-z0-9_ -]+$/.test(keyword)) throw new Error('Invalid keyword');
+  const config = await loadConfig();
+  if (config.demoMode) throw new Error('Demo mode is on - there is no SAP connection to search.');
+  const creds = credentials();
+  if (!creds) throw authError('Not signed in to SAP.');
+  const authHeader = 'Basic ' + Buffer.from(`${creds.user}:${creds.password}`).toString('base64');
+  const url = new URL('/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/ServiceCollection', config.sap.proxyUrl || config.sap.baseUrl);
+  url.searchParams.set('sap-client', config.sap.client);
+  url.searchParams.set('$format', 'json');
+  url.searchParams.set('$filter', `substringof('${keyword.replace(/'/g, "''")}',ID)`);
+  url.searchParams.set('$top', '50');
+  const res = await fetch(url, { headers: { Authorization: authHeader, Accept: 'application/json' } });
+  const text = await res.text();
+  if (res.status === 401) throw authError('SAP rejected the user name or password (401).');
+  if (!res.ok) throw new Error(`SAP returned ${res.status} searching the catalog: ${text.slice(0, 300)}`);
+  return text;
+}
+
 /** Plain JSON view of an analysed item: SAP raw fields dropped, dates as YYYY-MM-DD. */
 export function slim(item) {
   const out = {};

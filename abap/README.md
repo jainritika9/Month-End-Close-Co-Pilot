@@ -102,9 +102,15 @@ A user who runs the dashboard needs:
 
 `ZI_R2R_AccrualCheck` stays empty until rows exist in `ZMWC_R2R_ACCPLN`.
 
+## Unposted/parked documents: checked for a standard API, staying on custom ABAP for now
+
+Searched this system's SAP Gateway service catalog live (`/api/catalog?keyword=...` in `web/server.mjs`, querying `/IWFND/CATALOGSERVICE;v=2`) rather than guessing technical service names one at a time - this finds what's actually *registered*, not just what a given release *could* ship. None of `PARK`, `HELD`, `DRAFT`, `SUSPENSE`, `PRELIM`, `ACCOUNTINGDOC`, `JOURNALENTRY`, `BKPF` turned up anything for FI-side parked documents besides this repo's own `ZI_R2R_PARKEDDOCUMENT_CDS`. This only searches OData V2 services, so it can't see a V4-only service if one exists but isn't registered under a matching name either way - a real gap in this check, not a finding that no such API exists anywhere.
+
+One genuinely well-documented SAP standard API is relevant to a gap this source already has, not a replacement for it: **`API_SUPPLIERINVOICE_PROCESS_SRV`** covers MM-side supplier invoices parked via MIR7 (stored in `RBKP`/`RSEG`, which `ZI_R2R_ParkedDocItem` doesn't read - see the limit below). It isn't registered in this system either, so nothing has been verified or built against it. Given Basis activated the GR/IR candidates once they were identified, it may be worth asking them to register this one the same way - then its fields should be checked against real `$metadata`/data before wiring it up, the same as everything else in this file.
+
 ## Known limits and design decisions
 
-- **Parked documents cover FI only.** Supplier invoices parked in MM (MIR7) are stored in `RBKP/RSEG`, not `BKPF/VBSEG*`, so they don't appear yet. A fifth published view can be added for them.
+- **Parked documents cover FI only.** Supplier invoices parked in MM (MIR7) are stored in `RBKP/RSEG`, not `BKPF/VBSEG*`, so they don't appear yet - see the section above for a possible standard-API candidate.
 - **Direct table access.** The parked-document views read `BKPF`, `VBSEG*` and `T030` directly, because I don't know of a released view that covers parked line amounts or account determination. That's fine on-premise and on RISE, but not under ABAP Cloud (Tier 1). Accruals use the released `I_JournalEntryItem`; GR/IR no longer touches custom ABAP at all (see the GR/IR section above).
 - **GR/IR amounts are signed as posted.** GR is a credit (negative), and the extension flips it (`"signedAmounts": true`). Items that net to zero but are still uncleared (waiting for F.13) are returned by the API (since each side is a separate open line until cleared), and `analyzeGrir` hides the ones that net to zero after `aggregateGrirLineItems` sums them per PO item.
 - **How accruals are matched.** An accrual counts as posted when there are postings on the same expense GL account, cost center and document type in the period. Use a dedicated accrual document type, so ordinary invoices on the same account don't count as the accrual.

@@ -15,7 +15,7 @@ import path from 'node:path';
 
 import {
   getSnapshot, testConnection, setSessionCredentials, hasCredentials, loadConfig, fetchServiceMetadata,
-  fetchServiceSample,
+  fetchServiceSample, searchServiceCatalog,
 } from '../mcp/closeData.mjs';
 import { periodVars } from '../src/lib/config.js';
 
@@ -96,6 +96,22 @@ async function handle(req, res) {
         top: url.searchParams.get('top') || undefined,
         filter: url.searchParams.get('filter') || undefined,
       });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(body);
+    } catch (e) {
+      return json(res, e.code === 'SAP_AUTH' ? 401 : 502, { error: e.message });
+    }
+  }
+
+  // Diagnostic only: searches SAP Gateway's own service catalog for registered services matching
+  // a keyword, using the signed-in session - so a candidate standard API can be found by what's
+  // actually registered, instead of guessing technical names one at a time.
+  // Not linked from the UI - used via curl/browser at /api/catalog?keyword=PARK.
+  if (url.pathname === '/api/catalog' && req.method === 'GET') {
+    const keyword = url.searchParams.get('keyword');
+    if (!keyword) return json(res, 400, { error: 'keyword query param required, e.g. PARK' });
+    try {
+      const body = await searchServiceCatalog(keyword);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(body);
     } catch (e) {
