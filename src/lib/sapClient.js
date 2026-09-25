@@ -16,11 +16,24 @@ export function fillPlaceholders(value, vars) {
   return value.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]).replaceAll("'", "''") : m));
 }
 
+/**
+ * A query value can be a plain string, or `{ when, then, else }` to pick between two query
+ * strings based on whether `vars[when]` is set - e.g. filtering by Plant when the user has set
+ * one in Settings, falling back to CompanyCode otherwise (see config.sources.productionOrder).
+ */
+function resolveQueryValue(value, vars) {
+  if (value && typeof value === 'object') return vars[value.when] ? value.then : value.else;
+  return value;
+}
+
 export function buildUrl(config, source, vars) {
   const url = new URL(source.path, config.sap.proxyUrl || config.sap.baseUrl);
   url.searchParams.set('sap-client', config.sap.client);
   url.searchParams.set('$format', 'json');
-  for (const [k, v] of Object.entries(source.query ?? {})) url.searchParams.set(k, fillPlaceholders(v, vars));
+  for (const [k, v] of Object.entries(source.query ?? {})) {
+    const resolved = resolveQueryValue(v, vars);
+    if (resolved !== undefined) url.searchParams.set(k, fillPlaceholders(resolved, vars));
+  }
   return url;
 }
 

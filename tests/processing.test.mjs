@@ -315,6 +315,13 @@ test('buildUrl fills placeholders and escapes quotes', () => {
   assert.equal(proxied.origin, 'https://proxy.local');
 });
 
+test('buildUrl filters production orders by Plant when set, else by CompanyCode', () => {
+  const withPlant = buildUrl(config, config.sources.productionOrder, { companyCode: '1000', plant: '1010' });
+  assert.equal(withPlant.searchParams.get('$filter'), "Plant eq '1010'");
+  const withoutPlant = buildUrl(config, config.sources.productionOrder, { companyCode: '1000', plant: '' });
+  assert.equal(withoutPlant.searchParams.get('$filter'), "CompanyCode eq '1000'");
+});
+
 test('config helpers', () => {
   assert.deepEqual(deepMerge({ a: { b: 1, c: 2 }, l: [1] }, { a: { c: 3 }, l: [2] }), { a: { b: 1, c: 3 }, l: [2] });
   assert.deepEqual(periodVars(config, today),
