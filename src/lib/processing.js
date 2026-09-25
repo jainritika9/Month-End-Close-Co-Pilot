@@ -60,8 +60,12 @@ export function analyzeChecklist(rows, source, today, thresholds = {}) {
   const tasks = normalize(rows, source.fields).map((t) => {
     const status = String(t.status ?? '').toUpperCase();
     const dueDate = parseSapDate(t.dueDate);
+    // Some sources have no fixed set of "done" codes - e.g. API_INSPECTIONLOT_SRV's Usage
+    // Decision code is whatever a client's own UD catalog defines, so "any code present" means
+    // done, not one of a known list.
+    const isDone = source.statusMeansDoneWhenNonBlank ? status !== '' : done.has(status);
     let state = 'open';
-    if (done.has(status)) state = 'done';
+    if (isDone) state = 'done';
     else if (error.has(status)) state = 'error';
     else if (dueDate) {
       // Some sources (e.g. EAM inspection lots) have no real due date; dueDateIsAge means the
@@ -69,7 +73,9 @@ export function analyzeChecklist(rows, source, today, thresholds = {}) {
       const overdue = source.dueDateIsAge ? daysBetween(dueDate, today) > slaDays : daysBetween(dueDate, today) > 0;
       if (overdue) state = 'overdue';
     }
-    return { ...t, dueDate, state };
+    // Some sources have no free-text name/title field to display, only an id.
+    const name = source.nameFromId ? `Inspection lot ${t.id}` : t.name;
+    return { ...t, name, dueDate, state };
   });
   const count = (s) => tasks.filter((t) => t.state === s).length;
   const total = tasks.length;

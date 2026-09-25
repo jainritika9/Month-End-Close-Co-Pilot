@@ -6,7 +6,7 @@ import {
   parseSapDate, parseAmount, daysBetween, normalize, analyzeChecklist, analyzeUnposted, analyzeGrir,
   analyzeAccruals, buildSnapshot, buildAlerts,
 } from '../src/lib/processing.js';
-import { parseODataPage, buildUrl, fillPlaceholders } from '../src/lib/sapClient.js';
+import { parseODataPage, buildUrl, fillPlaceholders, mergeJoinedRows } from '../src/lib/sapClient.js';
 import { deepMerge, periodVars, stripSecrets, requiredOrigins } from '../src/lib/config.js';
 import { mockRaw } from '../src/lib/mockData.js';
 
@@ -49,10 +49,13 @@ test('normalize trims space-padded ABAP CHAR values but leaves non-strings alone
   assert.equal(rows[0].nil, null);
 });
 
+// A minimal, self-contained field mapping - independent of whatever shape the live config's
+// checklist source happens to have (currently API_INSPECTIONLOT_SRV), so these generic tests
+// keep testing analyzeChecklist's own logic rather than that source's specifics.
+const genericChecklistFields = { id: 'TaskID', name: 'TaskName', status: 'Status', dueDate: 'PlannedEndDate' };
+
 test('checklist states: done, error, overdue, open (generic due-date semantics)', () => {
-  // A self-contained source, decoupled from the live config's EAM-shaped checklist below, so this
-  // keeps testing the generic "due date in the future, overdue once it's past" behavior.
-  const src = { fields: config.sources.checklist.fields, statusValues: { done: ['COMPLETED'], error: ['ERROR'] } };
+  const src = { fields: genericChecklistFields, statusValues: { done: ['COMPLETED'], error: ['ERROR'] } };
   const rows = [
     { TaskID: '1', TaskName: 'A', Status: 'COMPLETED', PlannedEndDate: day(-5) },
     { TaskID: '2', TaskName: 'B', Status: 'ERROR', PlannedEndDate: day(1) },
@@ -64,18 +67,21 @@ test('checklist states: done, error, overdue, open (generic due-date semantics)'
   assert.equal(r.completionPct, 25);
 });
 
-test('checklist dueDateIsAge: PlannedEndDate is treated as "created on", overdue = older than the SLA', () => {
-  // This is the real config.sources.checklist shape (EAM inspection lots): no error state, and
-  // dueDateIsAge is on.
+test('checklist dueDateIsAge + statusMeansDoneWhenNonBlank: the real config.sources.checklist shape', () => {
+  // API_INSPECTIONLOT_SRV: no fixed "done" code list (any Usage Decision code closes a lot) and
+  // no due date (CreationDate stands in for it - overdue = older than the SLA).
   const src = config.sources.checklist;
   assert.equal(src.dueDateIsAge, true);
+  assert.equal(src.statusMeansDoneWhenNonBlank, true);
+  assert.equal(src.nameFromId, true);
   const rows = [
-    { TaskID: '1', TaskName: 'Old open lot', Status: 'O', PlannedEndDate: day(-15) },
-    { TaskID: '2', TaskName: 'Recent open lot', Status: 'O', PlannedEndDate: day(-2) },
-    { TaskID: '3', TaskName: 'Closed long ago', Status: 'C', PlannedEndDate: day(-30) },
+    { InspectionLot: '1', InspectionLotUsageDecisionCode: '', CreationDate: day(-15) },
+    { InspectionLot: '2', InspectionLotUsageDecisionCode: '', CreationDate: day(-2) },
+    { InspectionLot: '3', InspectionLotUsageDecisionCode: 'A1', CreationDate: day(-30) },
   ];
   const r = analyzeChecklist(rows, src, today, { checklistSlaDays: 10 });
   assert.deepEqual(r.items.map((t) => t.state), ['overdue', 'open', 'done']);
+  assert.deepEqual(r.items.map((t) => t.name), ['Inspection lot 1', 'Inspection lot 2', 'Inspection lot 3']);
 });
 
 test('unposted documents are filtered by threshold and sorted by amount', () => {
@@ -183,6 +189,15 @@ test('parseODataPage handles v2 and v4 payloads', () => {
   assert.deepEqual(parseODataPage({}), { rows: [], next: null });
 });
 
+test('mergeJoinedRows left-joins by key, e.g. inspection lots + their Usage Decision', () => {
+  const lots = [{ InspectionLot: '1', Plant: '1000' }, { InspectionLot: '2', Plant: '1000' }];
+  const decisions = [{ InspectionLot: '1', InspectionLotUsageDecisionCode: 'A1' }];
+  const merged = mergeJoinedRows(lots, decisions, 'InspectionLot');
+  assert.deepEqual(merged[0], { InspectionLot: '1', Plant: '1000', InspectionLotUsageDecisionCode: 'A1' });
+  assert.deepEqual(merged[1], { InspectionLot: '2', Plant: '1000' }, 'no match -> unchanged, not an error');
+  assert.equal(mergeJoinedRows(lots, [], 'InspectionLot').length, 2, 'an empty join set still returns every main row');
+});
+
 test('buildUrl fills placeholders and escapes quotes', () => {
   assert.equal(fillPlaceholders("X eq '{a}' and {missing}", { a: "O'Neil" }), "X eq 'O''Neil' and {missing}");
   const url = buildUrl(config, config.sources.grir, { companyCode: '1000' });
@@ -195,11 +210,11 @@ test('buildUrl fills placeholders and escapes quotes', () => {
 
 test('config helpers', () => {
   assert.deepEqual(deepMerge({ a: { b: 1, c: 2 }, l: [1] }, { a: { c: 3 }, l: [2] }), { a: { b: 1, c: 3 }, l: [2] });
-  assert.deepEqual(periodVars(config, today), { fiscalYear: '2026', period: '009', companyCode: '1000' });
-  const fixedFy = { ...config, sap: { ...config.sap, companyCode: '7827', fiscalYear: '2025' } };
-  assert.deepEqual(periodVars(fixedFy, today), { fiscalYear: '2025', period: '009', companyCode: '7827' });
+  assert.deepEqual(periodVars(config, today), { fiscalYear: '2026', period: '009', companyCode: '1000', plant: '' });
+  const fixedFy = { ...config, sap: { ...config.sap, companyCode: '7827', fiscalYear: '2025', plant: '1000' } };
+  assert.deepEqual(periodVars(fixedFy, today), { fiscalYear: '2025', period: '009', companyCode: '7827', plant: '1000' });
   const aprilFy = { ...config, sap: { ...config.sap, fiscalYearStartMonth: 4 } };
-  assert.deepEqual(periodVars(aprilFy, today), { fiscalYear: '2027', period: '006', companyCode: '1000' });
+  assert.deepEqual(periodVars(aprilFy, today), { fiscalYear: '2027', period: '006', companyCode: '1000', plant: '' });
   const secret = structuredClone(config);
   secret.auth.basic.password = 'x';
   secret.auth.oauth2.clientSecret = 'y';

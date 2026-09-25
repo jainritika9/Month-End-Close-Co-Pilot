@@ -2,7 +2,7 @@
 
 This is an implementation of [strategy.txt](strategy.txt). It is a Manifest V3 browser extension that signs in to SAP, calls OData APIs straight from the browser and shows a daily close dashboard. The dashboard covers:
 
-- **Close checklist status**: completion % and overdue items, backed by real EAM inspection-lot data rather than a hand-maintained list — see [abap/README.md](abap/README.md#known-limits-and-design-decisions)
+- **Close checklist status**: completion % and overdue items, read straight from SAP's standard `API_INSPECTIONLOT_SRV` (EAM/QM inspection lots) — no custom ABAP for this section at all, see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap)
 - **Unposted/parked documents**: amounts and how long they've been waiting
 - **Open GR/IR items**: GR vs IR difference and aging buckets, with items that need clearing flagged
 - **Missing accruals**: planned vs posted amounts, with missing, variance and overdue items flagged

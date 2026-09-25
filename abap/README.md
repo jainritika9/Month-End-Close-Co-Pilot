@@ -2,18 +2,17 @@
 
 These are the read-only OData services that the browser extension reads. They need S/4HANA 2020 or later (on-premise or RISE private cloud).
 
-The 4 exposed views are **classic DDIC-based CDS views with `@OData.publish: true`**, because that annotation doesn't work on view entities. Each exposed view generates its own OData V2 service, so there is no service definition or binding. The helper views are CDS view entities.
+**The close checklist needs no custom ABAP at all** - it reads the standard, SAP-delivered `API_INSPECTIONLOT_SRV` (`A_InspectionLot` + `A_InspLotUsageDecision`) directly; see [default-config.json](../config/default-config.json)'s `sources.checklist` and the "Close checklist: standard API" section below. Only the other 3 sections (unposted documents, GR/IR, accruals) still need the custom objects listed here.
 
-> DDIC-based views are deprecated as of S/4HANA 2022. They still activate and run, but ADT shows a warning. If you later switch to a service definition and binding, convert the 4 views back to `define view entity` and remove `sqlViewName`, `compareFilter`, `preserveKey` and `OData.publish`.
+The 3 exposed views are **classic DDIC-based CDS views with `@OData.publish: true`**, because that annotation doesn't work on view entities. Each exposed view generates its own OData V2 service, so there is no service definition or binding. The helper views are CDS view entities.
+
+> DDIC-based views are deprecated as of S/4HANA 2022. They still activate and run, but ADT shows a warning. If you later switch to a service definition and binding, convert the views back to `define view entity` and remove `sqlViewName`, `compareFilter`, `preserveKey` and `OData.publish`.
 
 ## Objects
 
 | File | Object | Type | Purpose |
 |---|---|---|---|
 | `zmwc_r2r_accpln.tabl.txt` | `ZMWC_R2R_ACCPLN` | Table | Accrual plan: expected accruals per period |
-| `ztf_eam_checklist_status` | `ZTF_EAM_CHECKLIST_STATUS` | CDS table function | EAM (Plant Maintenance) quality inspection lots and their Usage Decision status - the close checklist's real data source. From `EAM_Checklist_Status_Table_Function.docx`, plus a `bukrs` (company code) column |
-| `zcl_tf_eam_checklist_status.clas.abap` | `ZCL_TF_EAM_CHECKLIST_STATUS` | AMDP class | Implements the table function above (SQLScript over `QALS`/`JEST`/`TJ02T`/`AUFK`/`AFVC`) |
-| `zi_r2r_closetask` | `ZI_R2R_CloseTask` | DDIC CDS + DCL | **Published** as `ZI_R2R_CLOSETASK_CDS`. Close checklist, wrapping the table function above |
 | `zi_r2r_parkeddocitem` | `ZI_R2R_ParkedDocItem` | View entity (helper) | Union of debit lines from `VBSEGS/K/D/A` |
 | `zi_r2r_parkeddocamount` | `ZI_R2R_ParkedDocAmount` | View entity (helper) | Total per parked document |
 | `zi_r2r_parkeddocument` | `ZI_R2R_ParkedDocument` | DDIC CDS + DCL | **Published** as `ZI_R2R_PARKEDDOCUMENT_CDS`. Parked FI documents (`BKPF-BSTAT` V/W) |
@@ -29,14 +28,12 @@ The element names on the published views match the field mappings in `config/def
 
 Create all objects in one package, e.g. a new `ZMWC_R2R_CLOSE`, on one transport. For each object, create it with the same name, paste the file's content and activate it. Go in this order:
 
-1. The table `ZMWC_R2R_ACCPLN`. Business Function `LOG_EAM_CHECKLIST` must be active for the EAM objects below (per `EAM_Checklist_Status_Table_Function.docx`); confirm with your Basis team if unsure.
-2. `ZTF_EAM_CHECKLIST_STATUS` (CDS table function), then `ZCL_TF_EAM_CHECKLIST_STATUS` (its AMDP class) - create the class first in ADT (New > Class), mark **Global class**, then paste the source; the table function references it by name so either order activates, but the class existing first avoids a transient "method not found" warning.
-3. The parked-document views: `ZI_R2R_ParkedDocItem`, then `ZI_R2R_ParkedDocAmount`, then `ZI_R2R_ParkedDocument`.
-4. The GR/IR views: `ZI_R2R_GRIRAccount`, then `ZI_R2R_GRIRBalance`, then `ZI_R2R_GRIROpenItem`.
-5. The accrual views: `ZI_R2R_AccrualPosted`, then `ZI_R2R_AccrualCheck`.
-6. `ZI_R2R_CloseTask`.
-7. The 4 access controls (the `.dcls` files). Create each with the same name as its view.
-8. **Register the 4 generated services.** Activating a view with `@OData.publish: true` generates its service, but the service isn't reachable until it's registered. For each service:
+1. The table `ZMWC_R2R_ACCPLN`.
+2. The parked-document views: `ZI_R2R_ParkedDocItem`, then `ZI_R2R_ParkedDocAmount`, then `ZI_R2R_ParkedDocument`.
+3. The GR/IR views: `ZI_R2R_GRIRAccount`, then `ZI_R2R_GRIRBalance`, then `ZI_R2R_GRIROpenItem`.
+4. The accrual views: `ZI_R2R_AccrualPosted`, then `ZI_R2R_AccrualCheck`.
+5. The 3 access controls (the `.dcls` files). Create each with the same name as its view.
+6. **Register the 3 generated services.** Activating a view with `@OData.publish: true` generates its service, but the service isn't reachable until it's registered. For each service:
    - Go to `/IWFND/MAINT_SERVICE` → **Add Service**.
    - Enter System Alias `LOCAL` and the technical service name, then click **Get Services**.
    - Click **Add Selected Services** and use your package and transport.
@@ -45,11 +42,26 @@ Create all objects in one package, e.g. a new `ZMWC_R2R_CLOSE`, on one transport
 
    | Service | Entity set |
    |---|---|
-   | `ZI_R2R_CLOSETASK_CDS` | `ZI_R2R_CloseTask` |
    | `ZI_R2R_PARKEDDOCUMENT_CDS` | `ZI_R2R_ParkedDocument` |
    | `ZI_R2R_GRIROPENITEM_CDS` | `ZI_R2R_GRIROpenItem` |
    | `ZI_R2R_ACCRUALCHECK_CDS` | `ZI_R2R_AccrualCheck` |
-9. Optional: in SE54, generate table maintenance for `ZMWC_R2R_ACCPLN` so finance can maintain it in SM30.
+7. Also register the standard `API_INSPECTIONLOT_SRV` the same way (it's SAP-delivered, so only registration is needed, not creation) - see the checklist section below.
+8. Optional: in SE54, generate table maintenance for `ZMWC_R2R_ACCPLN` so finance can maintain it in SM30.
+
+## Close checklist: standard API, no custom ABAP
+
+`config/default-config.json`'s `sources.checklist` points straight at `API_INSPECTIONLOT_SRV` (`A_InspectionLot`), SAP's standard Quality Management API for inspection lots - confirmed present in this system. Two things make this different from the other 3 sources:
+
+- **No single entity carries both "lot exists" and "is it closed".** The Usage Decision (what closes a lot) lives in a separate entity set, `A_InspLotUsageDecision`, keyed by `InspectionLot`. The config's `join` block tells the extension to fetch both and merge them client-side by that key (`mergeJoinedRows` in `src/lib/sapClient.js`) - a lot with no matching Usage Decision row is simply open.
+- **No company code.** An inspection lot isn't tied to a company code the way an FI document is; the closest scoping field is `Plant`. Set **Plant** in Settings, then add `Plant eq '{plant}'` to this source's `$filter` (it isn't filtered by default, so every user sees the same unscoped `$top=500` most-recent lots until you do).
+
+Field names (`InspectionLotUsageDecisionCode`, `CreationDate`, `InspectionLotType`, ...) come from SAP's own API Business Hub / Help Portal documentation, not from testing against this system's `$metadata`. If the checklist section shows "Could not load", check `GET .../API_INSPECTIONLOT_SRV/$metadata` first - a wrong field name in the `fields` mapping just shows up blank (harmless), but a wrong one in `$filter`/`$orderby` causes a real error.
+
+Two fields this API doesn't have are made up for in `processing.js`:
+- **No free-text name** - `nameFromId: true` displays "Inspection lot `<id>`" instead.
+- **No fixed "done" code list** - Usage Decision codes are whatever a client's own UD catalog defines, so `statusMeansDoneWhenNonBlank: true` treats *any* code as closed, rather than checking against a specific list like the other sources' `statusValues.done`.
+
+There's still no owner field, same limitation as before.
 
 ## Verify these at activation
 
@@ -59,17 +71,15 @@ I wrote these views without access to your system. Names are based on standard S
 - **`Ledger = '0L'`**: this assumes your leading ledger is `0L`. It's in 2 views.
 - **`VBSEG*.BZKEY`**: this is the parked line number field. If the name differs, it only matters as a key and can be dropped.
 - **Case expressions on amounts** in `ZI_R2R_GRIRBalance` are allowed on 2020 and later. If activation rejects `sum( case … )`, tell me the exact error.
-- **`AUFK-BUKRS`**: I'm fairly confident this field exists (orders carry a company code for settlement), but check it in SE11 - `ZI_R2R_CloseTask` and its access control both depend on it.
-- **`substring`/`concat`/`concat_with_space`/`case` in the classic `ZI_R2R_CloseTask` view**: these are long-standing classic-CDS built-ins, but if activation rejects one, tell me the exact error and I'll adjust.
-- **SQL view names** (`ZIR2RCLTASK`, `ZIR2RPARKDOC`, `ZIR2RGRIROPEN`, `ZIR2RACCRCHK`) must be unique in the system and at most 16 characters.
+- **SQL view names** (`ZIR2RPARKDOC`, `ZIR2RGRIROPEN`, `ZIR2RACCRCHK`) must be unique in the system and at most 16 characters.
 - **Amounts stay as currency amounts (CURR) throughout** instead of being cast to decimals. This means OData applies the right number of decimals for currencies like JPY, which has 0 decimals.
 
 ## Authorizations (PFCG)
 
 A user who runs the dashboard needs:
 
-- **`S_SERVICE`**: start authorization for each of the 4 services. In PFCG, go to Menu → Authorization Default → *SAP Gateway: Service Groups Metadata* and add the 4 `ZI_R2R_*_CDS` services. Without it, calls return 403 and `SU53` shows `S_SERVICE`.
-- **`F_BKPF_BUK`**, activity `03`, for the company codes they should see. The access controls filter every entity set by this, so users without it get 0 rows rather than an error. This is the same check as FB03 and FBL3N.
+- **`S_SERVICE`**: start authorization for each service, including the standard `API_INSPECTIONLOT_SRV`. In PFCG, go to Menu → Authorization Default → *SAP Gateway: Service Groups Metadata* and add all 4. Without it, calls return 403 and `SU53` shows `S_SERVICE`.
+- **`F_BKPF_BUK`**, activity `03`, for the company codes they should see. The 3 custom views' access controls filter by this, so users without it get 0 rows rather than an error - same check as FB03 and FBL3N. `API_INSPECTIONLOT_SRV` has its own standard QM authorization instead (e.g. `Q_QMEL`/plant-based authorization) - check with your QM team what your users already need for IQS1/IQS21, since this API enforces the same.
 
 ## Test URLs (`/IWFND/GW_CLIENT` or a browser)
 
@@ -77,11 +87,13 @@ A user who runs the dashboard needs:
 /sap/opu/odata/sap/ZI_R2R_GRIROPENITEM_CDS/$metadata
 /sap/opu/odata/sap/ZI_R2R_GRIROPENITEM_CDS/ZI_R2R_GRIROpenItem?$top=5&$format=json
 /sap/opu/odata/sap/ZI_R2R_PARKEDDOCUMENT_CDS/ZI_R2R_ParkedDocument?$filter=CompanyCode eq '1000' and FiscalYear eq '2026' and FiscalPeriod eq '009'&$format=json
-/sap/opu/odata/sap/ZI_R2R_CLOSETASK_CDS/ZI_R2R_CloseTask?$format=json
 /sap/opu/odata/sap/ZI_R2R_ACCRUALCHECK_CDS/ZI_R2R_AccrualCheck?$format=json
+/sap/opu/odata/sap/API_INSPECTIONLOT_SRV/$metadata
+/sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspectionLot?$top=5&$format=json
+/sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspLotUsageDecision?$top=5&$format=json
 ```
 
-`ZI_R2R_AccrualCheck` stays empty until rows exist in `ZMWC_R2R_ACCPLN`. `ZI_R2R_CloseTask` returns data as soon as any QM inspection lots exist with an order attached.
+`ZI_R2R_AccrualCheck` stays empty until rows exist in `ZMWC_R2R_ACCPLN`.
 
 ## Known limits and design decisions
 
@@ -89,6 +101,5 @@ A user who runs the dashboard needs:
 - **Direct table access.** The parked-document views read `BKPF`, `VBSEG*` and `T030` directly, because I don't know of a released view that covers parked line amounts or account determination. That's fine on-premise and on RISE, but not under ABAP Cloud (Tier 1). GR/IR and accruals use the released `I_JournalEntryItem`.
 - **GR/IR amounts are signed as posted.** GR is a credit (negative), and the extension flips it (`"signedAmounts": true`). Items that net to zero but are still uncleared (waiting for F.13) are returned, and the extension hides them.
 - **How accruals are matched.** An accrual counts as posted when there are postings on the same expense GL account, cost center and document type in the period. Use a dedicated accrual document type, so ordinary invoices on the same account don't count as the accrual.
-- **The close checklist is EAM inspection-lot status, not a generic finance task list.** Each row is one QM inspection lot; "closed" means a Usage Decision was made (`QALS-VCODE` filled), whichever way it went - there's no separate "rejected/failed" state (see the AMDP class's header comment). There's no owner field at the lot level, so `ResponsiblePerson` is always blank. `PlannedEndDate` is really the lot's *creation* date; the extension (`dueDateIsAge` + `thresholds.checklistSlaDays`, default 10) treats "overdue" as "still open past the SLA" rather than "past a due date" - tune `checklistSlaDays` to match how long your inspections should take.
-- **Only inspection lots linked to a maintenance order get a company code**, since company code comes from `AUFK-BUKRS` via the order. A lot with no order (or whose order has no company code) has a blank `CompanyCode` and is filtered out for every user by the access control. If your EAM checklists aren't order-based, this view needs a different source of company code, or the access control needs to key off plant instead.
-- **If you'd rather track a generic finance checklist** (post accruals, run FX valuation, lock the period, ...) instead of or alongside this EAM one, that's the manually maintained approach from before - see this file's git history for `ZMWC_R2R_CLTASK` and the earlier `ZI_R2R_CloseTask`.
+- **The close checklist is EAM inspection-lot status, not a generic finance task list.** Each row is one QM inspection lot; "closed" means a Usage Decision exists, whichever way it went - there's no separate "rejected/failed" state (see the checklist section above). There's no owner field either.
+- **If you'd rather track a generic finance checklist** (post accruals, run FX valuation, lock the period, ...) instead of or alongside this EAM one, that's the manually maintained approach from before, built on a Z table and a custom CDS view - see this file's git history (before the switch to `API_INSPECTIONLOT_SRV`) for `ZMWC_R2R_CLTASK` and `ZI_R2R_CloseTask`.

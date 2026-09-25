@@ -19,25 +19,27 @@ export function mockRaw(config, today = new Date()) {
   const s = config.sources;
   const d = (off) => odataDate(today, off);
 
-  // Shaped like ZI_R2R_CloseTask's EAM data: one row per inspection lot, no owner field, and
-  // status is only ever 'C' (closed - a Usage Decision was made) or 'O' (open). dueDate here
-  // stands in for the lot's creation date (see config.sources.checklist.dueDateIsAge) - "overdue"
-  // means open longer than thresholds.checklistSlaDays (10), not "past a due date".
+  // Shaped like the standard API_INSPECTIONLOT_SRV data this now reads (see
+  // config.sources.checklist): InspectionLotUsageDecisionCode is blank until a decision is made -
+  // any non-blank code counts as closed (statusMeansDoneWhenNonBlank), whichever way it went.
+  // CreationDate stands in for a due date (dueDateIsAge: overdue = open longer than
+  // thresholds.checklistSlaDays, 10). InspectionLotType is a raw 2-digit code here, matching the
+  // real API - it has no text lookup, unlike the old custom CDS view's friendly category names.
   const checklist = [
-    ['C', -25, 'Incoming inspection'],
-    ['C', -20, 'In-process inspection'],
-    ['C', -18, 'Final inspection'],
-    ['O', -15, 'Final inspection'], // open 15d > SLA -> overdue
-    ['O', -14, 'In-process inspection'], // overdue
-    ['O', -3, 'Incoming inspection'], // within SLA -> open
-    ['O', -1, 'Final inspection'], // open
-    ['C', -8, 'Incoming inspection'],
-    ['O', -12, 'Final inspection'], // overdue
-    ['C', -6, 'In-process inspection'],
-    ['O', -2, 'Incoming inspection'], // open
-    ['C', -22, 'Final inspection'],
+    ['A1', -25, '01'],
+    ['A1', -20, '04'],
+    ['A2', -18, '08'],
+    ['', -15, '08'], // open 15d > SLA -> overdue
+    ['', -14, '04'], // overdue
+    ['', -3, '01'], // within SLA -> open
+    ['', -1, '08'], // open
+    ['A1', -8, '01'],
+    ['', -12, '08'], // overdue
+    ['A1', -6, '04'],
+    ['', -2, '01'], // open
+    ['A2', -22, '08'],
   ].map(([status, off, category], i) => ({
-    id: `${10000231 + i}`, name: `Inspection lot ${10000231 + i}`, owner: '', status, dueDate: d(off), category,
+    id: `${10000231 + i}`, status, dueDate: d(off), category,
   }));
 
   const unposted = [

@@ -76,5 +76,8 @@ export function periodVars(config, date = new Date()) {
     fiscalYear: String(fiscalYear),
     period: String(period).padStart(3, '0'),
     companyCode: config.sap.companyCode,
+    // Some sources (e.g. the EAM/QM-based checklist) have no company code and scope by plant
+    // instead - see config.sap.plant.
+    plant: config.sap.plant ?? '',
   };
 }

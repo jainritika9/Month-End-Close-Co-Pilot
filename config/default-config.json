@@ -5,6 +5,7 @@
     "baseUrl": "http://vhc2jq4rci.rise.ccbji.co.jp:8000/sap/bc/ui2/flp",
     "client": "100",
     "companyCode": "7827",
+    "plant": "",
     "fiscalYear": "2026",
     "fiscalYearStartMonth": 1,
     "proxyUrl": "",
@@ -25,26 +26,28 @@
   "sources": {
     "checklist": {
       "label": "Close checklist",
-      "path": "/sap/opu/odata/sap/ZI_R2R_CLOSETASK_CDS/ZI_R2R_CloseTask",
+      "_comment": "Standard SAP API (API_INSPECTIONLOT_SRV), no custom ABAP - EAM/QM inspection lots. This entity set has no Usage Decision field, so 'join' fetches A_InspLotUsageDecision separately and merges it in by InspectionLot (see sapClient.js's mergeJoinedRows). Field/filter names here are the best-documented ones found (SAP Help Portal + API Business Hub), but weren't checked against this system's own $metadata - if a section shows 'Could not load', that's the first thing to check ($GET .../API_INSPECTIONLOT_SRV/$metadata). No company code exists on an inspection lot; this scopes by sap.plant instead (see Settings). There's no owner field either (nameFromId/statusMeansDoneWhenNonBlank below make up for the fields this API doesn't have - see processing.js's analyzeChecklist).",
+      "path": "/sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspectionLot",
       "query": {
-        "$filter": "FiscalYear eq '{fiscalYear}' and FiscalPeriod eq '{period}' and CompanyCode eq '{companyCode}'"
+        "$orderby": "CreationDate desc",
+        "$top": "500"
+      },
+      "join": {
+        "path": "/sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspLotUsageDecision",
+        "key": "InspectionLot"
       },
       "fields": {
-        "id": "TaskID",
-        "name": "TaskName",
-        "owner": "ResponsiblePerson",
-        "status": "Status",
-        "dueDate": "PlannedEndDate",
-        "category": "TaskCategory"
+        "id": "InspectionLot",
+        "status": "InspectionLotUsageDecisionCode",
+        "dueDate": "CreationDate",
+        "category": "InspectionLotType"
       },
       "statusValues": {
-        "done": [
-          "C",
-          "COMPLETED"
-        ],
+        "done": [],
         "error": []
       },
-      "_comment": "This source is EAM inspection-lot status (see abap/ztf_eam_checklist_status.ddls.asddls), not a hand-maintained task list, so there is no 'failed' state - only open ('O') or closed ('C'). PlannedEndDate is the lot's creation date, not a real due date; dueDateIsAge tells the extension to treat it that way (overdue = open longer than thresholds.checklistSlaDays) instead of comparing it to today as a due date.",
+      "nameFromId": true,
+      "statusMeansDoneWhenNonBlank": true,
       "dueDateIsAge": true
     },
     "unposted": {

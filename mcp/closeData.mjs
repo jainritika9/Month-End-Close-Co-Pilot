@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { deepMerge, periodVars } from '../src/lib/config.js';
-import { buildUrl, parseODataPage } from '../src/lib/sapClient.js';
+import { buildUrl, parseODataPage, mergeJoinedRows } from '../src/lib/sapClient.js';
 import { buildSnapshot } from '../src/lib/processing.js';
 import { mockRaw } from '../src/lib/mockData.js';
 
@@ -36,11 +36,13 @@ export async function loadConfig() {
   const baseUrl = option('SAP_BASE_URL', 'sap_base_url');
   const client = option('SAP_CLIENT', 'sap_client');
   const companyCode = option('SAP_COMPANY_CODE', 'company_code');
+  const plant = option('SAP_PLANT', 'plant');
   const fiscalYear = option('SAP_FISCAL_YEAR', 'fiscal_year');
   const demo = option('SAP_DEMO_MODE', 'demo_mode');
   if (baseUrl) overrides.sap.baseUrl = baseUrl;
   if (client) overrides.sap.client = client;
   if (companyCode) overrides.sap.companyCode = companyCode;
+  if (plant) overrides.sap.plant = plant;
   if (fiscalYear) overrides.sap.fiscalYear = fiscalYear;
   if (demo !== null) overrides.demoMode = /^(true|1|yes)$/i.test(demo);
   return deepMerge(config, overrides);
@@ -92,7 +94,7 @@ async function fetchJson(url, authHeader, timeoutMs) {
   }
 }
 
-async function fetchSource(config, source, vars, authHeader, maxPages = 50) {
+async function fetchEntitySet(config, source, vars, authHeader, maxPages = 50) {
   let url = buildUrl(config, source, vars);
   const all = [];
   for (let page = 0; url && page < maxPages; page++) {
@@ -101,6 +103,14 @@ async function fetchSource(config, source, vars, authHeader, maxPages = 50) {
     url = next ? new URL(next, url) : null;
   }
   return all;
+}
+
+/** Fetches a source and merges in its `join` entity set, if configured - see sapClient.js. */
+async function fetchSource(config, source, vars, authHeader, maxPages = 50) {
+  const mainRows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
+  if (!source.join) return mainRows;
+  const joinRows = await fetchEntitySet(config, source.join, vars, authHeader, maxPages);
+  return mergeJoinedRows(mainRows, joinRows, source.join.key);
 }
 
 let cache = null;

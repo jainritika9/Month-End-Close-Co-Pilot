@@ -65,9 +65,21 @@ export function parseODataPage(body) {
   return { rows: body?.value ?? [], next: body?.['@odata.nextLink'] ?? null };
 }
 
-/** Fetches every page of one configured source. */
-export async function fetchSource(config, source, vars, maxPages = 50) {
-  const authHeader = await getAuthHeader(config);
+/**
+ * Left-joins `joinRows` onto `mainRows` by a shared key field (client-side, since not every
+ * standard SAP API that a source needs data from exposes it pre-joined - e.g.
+ * API_INSPECTIONLOT_SRV splits lot header (A_InspectionLot) and Usage Decision
+ * (A_InspLotUsageDecision) into two separate, independently-fetched entity sets). A main row with
+ * no match (e.g. a lot with no Usage Decision yet) is kept as-is - its joined fields are simply
+ * absent, which `normalize()` already treats as blank. On a name collision, the main row wins.
+ */
+export function mergeJoinedRows(mainRows, joinRows, key) {
+  const byKey = new Map(joinRows.map((r) => [r[key], r]));
+  return mainRows.map((row) => ({ ...byKey.get(row[key]), ...row }));
+}
+
+/** Fetches every page of one entity set (a source or a source's `join`). */
+async function fetchEntitySet(config, source, vars, authHeader, maxPages) {
   let url = buildUrl(config, source, vars);
   const all = [];
   for (let page = 0; url && page < maxPages; page++) {
@@ -76,4 +88,16 @@ export async function fetchSource(config, source, vars, maxPages = 50) {
     url = next ? new URL(next, url) : null;
   }
   return all;
+}
+
+/**
+ * Fetches every page of one configured source, and merges in its `join` entity set (if any) -
+ * see `mergeJoinedRows`.
+ */
+export async function fetchSource(config, source, vars, maxPages = 50) {
+  const authHeader = await getAuthHeader(config);
+  const mainRows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
+  if (!source.join) return mainRows;
+  const joinRows = await fetchEntitySet(config, source.join, vars, authHeader, maxPages);
+  return mergeJoinedRows(mainRows, joinRows, source.join.key);
 }

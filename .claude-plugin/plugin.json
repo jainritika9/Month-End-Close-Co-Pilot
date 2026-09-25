@@ -36,6 +36,12 @@
       "description": "Default company code for close questions",
       "default": "7827"
     },
+    "plant": {
+      "type": "string",
+      "title": "Plant",
+      "description": "Scopes the close checklist (EAM inspection lots have no company code, only a plant)",
+      "default": ""
+    },
     "fiscal_year": {
       "type": "string",
       "title": "Fiscal year",
@@ -76,6 +82,7 @@
         "SAP_BASE_URL": "${user_config.sap_base_url}",
         "SAP_CLIENT": "${user_config.sap_client}",
         "SAP_COMPANY_CODE": "${user_config.company_code}",
+        "SAP_PLANT": "${user_config.plant}",
         "SAP_FISCAL_YEAR": "${user_config.fiscal_year}",
         "SAP_USER": "${user_config.sap_user}",
         "SAP_PASSWORD": "${user_config.sap_password}",

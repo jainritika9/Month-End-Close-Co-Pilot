@@ -33,9 +33,11 @@
         <div class="row">
           <label>Client (sap-client) <input name="sap.client" pattern="\d{3}" /></label>
           <label>Company code <input name="sap.companyCode" /></label>
+          <label>Plant <input name="sap.plant" placeholder="e.g. 1000" /></label>
           <label>Fiscal year starts in month <input name="sap.fiscalYearStartMonth" type="number" min="1" max="12" /></label>
           <label>Fiscal year (empty = current) <input name="sap.fiscalYear" pattern="\d{4}" placeholder="auto" /></label>
         </div>
+        <p class="hint">Plant is used only by the close checklist (EAM inspection lots have no company code). It's not filtered by default - add <code>Plant eq '{plant}'</code> to the checklist's <code>$filter</code> below once you've set it, to scope the checklist to one plant.</p>
         <label>Proxy URL (optional) <input name="sap.proxyUrl" type="url" placeholder="Leave empty to call SAP directly" /></label>
         <p class="hint">A proxy is only needed if the SAP host is not reachable from the browser directly. Extension pages are not subject to CORS once host access is granted.</p>
         <label>Request timeout (ms) <input name="sap.requestTimeoutMs" type="number" min="1000" step="1000" /></label>
