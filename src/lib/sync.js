@@ -8,7 +8,7 @@ import { buildSnapshot, buildAlerts } from './processing.js';
 import { mockRaw } from './mockData.js';
 
 const SNAPSHOT_KEY = 'closeSnapshot';
-export const SOURCE_KEYS = ['checklist', 'unposted', 'grir', 'accruals'];
+export const SOURCE_KEYS = ['checklist', 'productionOrder', 'maintenanceOrder', 'unposted', 'grir', 'accruals'];
 
 export async function getSnapshot() {
   const { [SNAPSHOT_KEY]: snap } = await chrome.storage.session.get(SNAPSHOT_KEY);

@@ -5,11 +5,11 @@ argument-hint: "[company code] [period]"
 
 Write a month-end close status report for finance management. Arguments (optional): $ARGUMENTS (company code and/or period).
 
-Gather the data with the `sap-close` MCP server: `get_close_status`, then `list_checklist_tasks` (state `overdue` and `error`), `list_grir_items` (`flagged_only: true`, limit 10), `list_accruals` (state `missing`) and `list_unposted_documents` (limit 10).
+Gather the data with the `sap-close` MCP server: `get_close_status`, then `list_checklist_tasks` (state `overdue` and `error`) for each of the 3 categories (`inspection_lot`, `production_order`, `maintenance_order` - skip a category if `get_close_status` shows it as empty/missing), `list_grir_items` (`flagged_only: true`, limit 10), `list_accruals` (state `missing`) and `list_unposted_documents` (limit 10).
 
 Write the report in this structure, concise and factual, figures only from the tools:
 1. **Summary** - 3 sentences: where the close stands, the biggest risk, what is needed to finish.
-2. **Checklist** - completion %, failed and overdue tasks with owners.
+2. **Checklist** - completion % and failed/overdue tasks, broken out by category (inspection lots, production orders, maintenance orders).
 3. **Open items** - parked documents, GR/IR to clear, missing accruals: counts, amounts, top items.
 4. **Actions and owners** - numbered list, most important first.
 

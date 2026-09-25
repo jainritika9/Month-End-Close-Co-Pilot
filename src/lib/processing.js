@@ -53,6 +53,27 @@ function mainCurrency(items) {
 
 // ---------- Per-source analysis ----------
 
+/**
+ * Derives a single synthetic status field ('_derivedStatus': 'DONE' or '') for order-based
+ * checklist sources (production/maintenance orders) that expose "is this closed" as either a set
+ * of separate 'X' boolean flags (production order: OrderIsTechnicallyCompleted, OrderIsClosed) or
+ * a space-separated status text (maintenance order: SystemStatusText, containing SAP status
+ * abbreviations like TECO/CLSD) rather than one status field - so analyzeChecklist's existing
+ * statusMeansDoneWhenNonBlank logic can read it the same way it reads a Usage Decision code.
+ */
+export function deriveOrderStatus(rows, source) {
+  return rows.map((row) => {
+    let done = false;
+    if (source.doneWhenFlagSet) done = source.doneWhenFlagSet.some((f) => row[f] === 'X');
+    if (!done && source.doneWhenTextContains) {
+      const { field, tokens } = source.doneWhenTextContains;
+      const text = String(row[field] ?? '');
+      done = tokens.some((t) => text.includes(t));
+    }
+    return { ...row, _derivedStatus: done ? 'DONE' : '' };
+  });
+}
+
 export function analyzeChecklist(rows, source, today, thresholds = {}) {
   const done = new Set((source.statusValues?.done ?? []).map((s) => s.toUpperCase()));
   const error = new Set((source.statusValues?.error ?? []).map((s) => s.toUpperCase()));
@@ -90,6 +111,28 @@ export function analyzeChecklist(rows, source, today, thresholds = {}) {
     // Lets the dashboard label the date column "Created" instead of "Due" for sources where
     // dueDate really means "created on" (see the comment above).
     dueDateIsAge: !!source.dueDateIsAge,
+  };
+}
+
+export const CHECKLIST_CATEGORIES = [
+  ['checklist', 'Inspection lots'],
+  ['productionOrder', 'Production orders'],
+  ['maintenanceOrder', 'Maintenance orders'],
+];
+
+/** Combines the 3 checklist-like sources into one overall completion figure, e.g. for a KPI tile. */
+export function combineChecklistSummaries(summary) {
+  const parts = CHECKLIST_CATEGORIES.map(([key]) => summary[key]).filter(Boolean);
+  if (!parts.length) return null;
+  const sum = (field) => parts.reduce((s, p) => s + p[field], 0);
+  const total = sum('total');
+  const done = sum('done');
+  return {
+    total, done,
+    open: sum('open'),
+    overdue: sum('overdue'),
+    error: sum('error'),
+    completionPct: total ? Math.round((done / total) * 100) : 0,
   };
 }
 
@@ -214,25 +257,37 @@ export function analyzeAccruals(rows, source, thresholds, today) {
 
 // ---------- Alerts ----------
 
-export function buildAlerts(summary, thresholds) {
+/**
+ * Alerts for one of the 3 checklist-like categories (inspection lots, production orders,
+ * maintenance orders) - counts only, deliberately, since a real close can have hundreds of open
+ * items and naming them all here would make this list unreadable. `tab` lets a click on the alert
+ * switch the shared checklist card to the right sub-tab, not just scroll to it.
+ */
+function checklistAlerts(summary, key, noun, thresholds) {
+  const c = summary[key];
+  if (!c) return [];
   const alerts = [];
-  const { checklist, unposted, grir, accruals } = summary;
-
-  if (checklist) {
-    // Counts only, deliberately - a real close can have hundreds of open items (e.g. an old,
-    // never-closed batch of EAM inspection lots), and naming them all here would make this list
-    // unreadable. Open the checklist card and filter by state to see which ones.
-    if (checklist.error) {
-      alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.error} close task(s) failed`,
-        detail: 'Open the checklist and filter by Error to see which ones.' });
-    }
-    if (checklist.overdue) {
-      const detail = checklist.dueDateIsAge
-        ? `Open longer than ${thresholds.checklistSlaDays ?? 0} days`
-        : 'Past their due date';
-      alerts.push({ severity: 'high', category: 'checklist', title: `${checklist.overdue} close task(s) overdue`, detail });
-    }
+  if (c.error) {
+    alerts.push({ severity: 'high', category: 'checklist', tab: key, title: `${c.error} ${noun}(s) failed`,
+      detail: 'Open the checklist and filter by Error to see which ones.' });
   }
+  if (c.overdue) {
+    const detail = c.dueDateIsAge
+      ? `Open longer than ${thresholds.checklistSlaDays ?? 0} days`
+      : 'Past their due date';
+    alerts.push({ severity: 'high', category: 'checklist', tab: key, title: `${c.overdue} ${noun}(s) overdue`, detail });
+  }
+  return alerts;
+}
+
+export function buildAlerts(summary, thresholds) {
+  const alerts = [
+    ...checklistAlerts(summary, 'checklist', 'close task', thresholds),
+    ...checklistAlerts(summary, 'productionOrder', 'production order', thresholds),
+    ...checklistAlerts(summary, 'maintenanceOrder', 'maintenance order', thresholds),
+  ];
+  const { unposted, grir, accruals } = summary;
+
   if (unposted?.count) {
     const old = unposted.items.filter((d) => (d.ageDays ?? 0) > 5).length;
     alerts.push({ severity: old ? 'medium' : 'low', category: 'unposted',
@@ -273,6 +328,14 @@ export function buildSnapshot(raw, config, today = new Date()) {
     else if (raw[key]) summary[key] = fn(raw[key]);
   };
   run('checklist', (r) => analyzeChecklist(r, sources.checklist, today, thresholds));
+  for (const key of ['productionOrder', 'maintenanceOrder']) {
+    const source = sources[key];
+    if (!source) continue;
+    run(key, (r) => analyzeChecklist(
+      source.doneWhenFlagSet || source.doneWhenTextContains ? deriveOrderStatus(r, source) : r,
+      source, today, thresholds,
+    ));
+  }
   run('unposted', (r) => analyzeUnposted(r, sources.unposted, thresholds, today));
   run('grir', (r) => analyzeGrir(
     sources.grir.groupByPoItem ? aggregateGrirLineItems(r, sources.grir.lineItemFields) : r,

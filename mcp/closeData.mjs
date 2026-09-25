@@ -9,7 +9,7 @@ import { buildUrl, parseODataPage, mergeJoinedRows } from '../src/lib/sapClient.
 import { buildSnapshot } from '../src/lib/processing.js';
 import { mockRaw } from '../src/lib/mockData.js';
 
-const SOURCE_KEYS = ['checklist', 'unposted', 'grir', 'accruals'];
+const SOURCE_KEYS = ['checklist', 'productionOrder', 'maintenanceOrder', 'unposted', 'grir', 'accruals'];
 const CACHE_TTL_MS = 2 * 60 * 1000;
 
 // Plugin userConfig values arrive either through the env mapping in plugin.json or as
@@ -232,7 +232,7 @@ export async function fetchServiceMetadata(service) {
  * data (not just schema) - e.g. whether fields the metadata promises are actually populated and
  * recent, before wiring up a new standard API. `service`/`entitySet` must be bare technical names.
  */
-export async function fetchServiceSample(service, entitySet, { top = 5, filter } = {}) {
+export async function fetchServiceSample(service, entitySet, { top = 5, filter, orderby } = {}) {
   if (!/^[A-Za-z0-9_]+$/.test(service)) throw new Error('Invalid service name');
   if (!/^[A-Za-z0-9_]+$/.test(entitySet)) throw new Error('Invalid entity set name');
   const config = await loadConfig();
@@ -245,6 +245,7 @@ export async function fetchServiceSample(service, entitySet, { top = 5, filter }
   url.searchParams.set('$format', 'json');
   url.searchParams.set('$top', String(Math.min(Number(top) || 5, 20)));
   if (filter) url.searchParams.set('$filter', filter);
+  if (orderby) url.searchParams.set('$orderby', orderby);
   const res = await fetch(url, { headers: { Authorization: authHeader, Accept: 'application/json' } });
   const text = await res.text();
   if (res.status === 401) throw authError('SAP rejected the user name or password (401).');

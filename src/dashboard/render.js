@@ -1,7 +1,7 @@
 // Dashboard rendering shared by the Chrome extension (dashboard.js) and the local web dashboard
 // (web/app.js). Pure DOM work on a snapshot; how the snapshot is obtained is up to the caller.
 
-import { GRIR_BUCKETS } from '../lib/processing.js';
+import { GRIR_BUCKETS, CHECKLIST_CATEGORIES, combineChecklistSummaries } from '../lib/processing.js';
 import { donut, hbars, progress } from '../lib/charts.js';
 
 const $ = (id) => document.getElementById(id);
@@ -13,6 +13,9 @@ const COLORS = {
 
 // Per-card filter state, so re-renders keep the user's selection.
 const filters = { checklist: 'all', grir: 'all', accruals: 'all' };
+// Which of the 3 checklist-like sources (inspection lots, production orders, maintenance orders)
+// the shared "Close checklist" card is currently showing.
+let checklistTab = CHECKLIST_CATEGORIES[0][0];
 
 let snapshot;
 
@@ -128,7 +131,44 @@ function setFilter(key, value) {
 
 // ---------- Section renderers ----------
 
-function renderChecklist(card, c) {
+/** Renders the sub-tab bar for the shared checklist card and picks which source is shown. */
+function renderChecklistCard(snap) {
+  const card = $('card-checklist');
+  const available = CHECKLIST_CATEGORIES.filter(([key]) => snap.summary[key] || snap.errors?.[key]);
+  if (!available.some(([key]) => key === checklistTab)) checklistTab = available[0]?.[0] ?? CHECKLIST_CATEGORIES[0][0];
+
+  const tabBar = card.querySelector('.subtabs');
+  tabBar.replaceChildren(
+    ...available.map(([key, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.role = 'tab';
+      b.textContent = label;
+      b.setAttribute('aria-selected', String(checklistTab === key));
+      b.addEventListener('click', () => {
+        checklistTab = key;
+        filters.checklist = 'all';
+        render();
+      });
+      return b;
+    }),
+  );
+
+  const err = card.querySelector('.card-error');
+  err.hidden = !snap.errors?.[checklistTab];
+  err.textContent = snap.errors?.[checklistTab] ? `Could not load: ${snap.errors[checklistTab]}` : '';
+
+  const c = snap.summary[checklistTab];
+  if (!c) {
+    card.querySelector('.chart-slot').replaceChildren();
+    card.querySelector('.filters').replaceChildren();
+    card.querySelector('.table-slot').replaceChildren();
+    return;
+  }
+  renderChecklistBody(card, c);
+}
+
+function renderChecklistBody(card, c) {
   const segments = [
     { label: 'Done', value: c.done, color: COLORS.done },
     { label: 'Open', value: c.open, color: COLORS.open },
@@ -265,12 +305,12 @@ function renderAccruals(card, a) {
   );
 }
 
-const RENDERERS = { checklist: renderChecklist, unposted: renderUnposted, grir: renderGrir, accruals: renderAccruals };
+const RENDERERS = { unposted: renderUnposted, grir: renderGrir, accruals: renderAccruals };
 
 function renderKpis(s) {
   const kpis = [];
-  if (s.checklist) {
-    const c = s.checklist;
+  const c = combineChecklistSummaries(s);
+  if (c) {
     kpis.push({ key: 'checklist', label: 'Checklist complete', value: `${c.completionPct}%`,
       sub: `${c.overdue} overdue · ${c.error} failed`, status: c.error || c.overdue ? 'bad' : 'ok',
       extra: progress(c.completionPct, c.error ? 'var(--bad)' : 'var(--ok)') });
@@ -323,7 +363,15 @@ function renderAlerts(alerts) {
       detail.className = 'detail';
       detail.textContent = a.detail;
       li.append(pill(a.severity, a.severity), title, detail);
-      li.addEventListener('click', () => $(`card-${a.category}`).scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      li.addEventListener('click', () => {
+        // An alert for one of the checklist's 3 sub-tabs switches to that tab, not just scrolls.
+        if (a.tab) {
+          checklistTab = a.tab;
+          filters.checklist = 'all';
+          render();
+        }
+        $(`card-${a.category}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       return li;
     }),
   );
@@ -336,6 +384,7 @@ export function render() {
   $('syncedAt').textContent = `Synced ${new Date(snapshot.syncedAt).toLocaleString()}`;
   renderAlerts(snapshot.alerts);
   renderKpis(snapshot.summary);
+  renderChecklistCard(snapshot);
   for (const [key, fn] of Object.entries(RENDERERS)) {
     const card = $(`card-${key}`);
     const err = card.querySelector('.card-error');

@@ -95,6 +95,7 @@ async function handle(req, res) {
       const body = await fetchServiceSample(service, entity, {
         top: url.searchParams.get('top') || undefined,
         filter: url.searchParams.get('filter') || undefined,
+        orderby: url.searchParams.get('orderby') || undefined,
       });
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(body);

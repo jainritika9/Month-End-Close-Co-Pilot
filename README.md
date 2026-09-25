@@ -2,7 +2,7 @@
 
 This is an implementation of [strategy.txt](strategy.txt). It is a Manifest V3 browser extension that signs in to SAP, calls OData APIs straight from the browser and shows a daily close dashboard. The dashboard covers:
 
-- **Close checklist status**: completion % and overdue items, read straight from SAP's standard `API_INSPECTIONLOT_SRV` (EAM/QM inspection lots) — no custom ABAP for this section at all, see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap)
+- **Close checklist status**: 3 tabs — EAM/QM inspection lots (`API_INSPECTIONLOT_SRV`), production orders (`API_PRODUCTION_ORDER_2_SRV`) and maintenance orders (`API_MAINTENANCEORDER`) — completion % and overdue items for each, all standard SAP APIs with no custom ABAP, see [abap/README.md](abap/README.md#close-checklist-standard-apis-no-custom-abap)
 - **Unposted/parked documents**: amounts and how long they've been waiting
 - **Open GR/IR items**: GR vs IR difference and aging buckets, with items that need clearing flagged, read straight from SAP's standard `API_OPLACCTGDOCITEMCUBE_SRV` (universal journal line items) — no custom ABAP for this section either, see [abap/README.md](abap/README.md#open-grir-items-standard-api-no-custom-abap)
 - **Missing accruals**: planned vs posted amounts, with missing, variance and overdue items flagged
@@ -87,7 +87,7 @@ When you enable it, Claude Code asks for the plugin options: SAP base URL, clien
 **MCP tools** (server `sap-close`, [mcp/server.mjs](mcp/server.mjs)). Claude also calls these directly when you ask a free-form question:
 
 - `get_close_status`
-- `list_checklist_tasks`
+- `list_checklist_tasks` (`category`: `inspection_lot` default, `production_order` or `maintenance_order`)
 - `list_unposted_documents`
 - `list_grir_items`
 - `list_accruals`

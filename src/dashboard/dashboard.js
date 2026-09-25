@@ -95,7 +95,7 @@ async function init() {
 // ---------- Wiring ----------
 
 $('refreshAll').addEventListener('click', () => sync());
-document.querySelectorAll('[data-refresh]').forEach((b) => b.addEventListener('click', () => sync([b.dataset.refresh])));
+document.querySelectorAll('[data-refresh]').forEach((b) => b.addEventListener('click', () => sync(b.dataset.refresh.split(','))));
 $('openSettings').addEventListener('click', () => chrome.runtime.openOptionsPage());
 $('signOut').addEventListener('click', async () => {
   await logout();

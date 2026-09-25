@@ -37,7 +37,8 @@ test('web dashboard server: page, API and access restrictions', async () => {
   const snap = await snapRes.json();
   assert.equal(snap.demo, true);
   assert.equal(snap.context.period, '008');
-  assert.deepEqual(Object.keys(snap.summary).sort(), ['accruals', 'checklist', 'grir', 'unposted']);
+  assert.deepEqual(Object.keys(snap.summary).sort(),
+    ['accruals', 'checklist', 'grir', 'maintenanceOrder', 'productionOrder', 'unposted']);
   assert.ok(snap.summary.grir.items[0]._raw, 'drill-down keeps raw SAP fields');
 
   assert.equal((await fetch(new URL('/src/dashboard/render.js', base))).status, 200);

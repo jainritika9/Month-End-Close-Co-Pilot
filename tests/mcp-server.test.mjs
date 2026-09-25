@@ -59,6 +59,15 @@ test('MCP server: handshake, tool list and demo-data tool calls', async () => {
     assert.equal(status.data.context.demoData, true);
     assert.ok(status.data.alerts.length > 0);
     assert.equal(status.data.checklist.items, undefined, 'overview omits item lists');
+    assert.equal(status.data.productionOrders.items, undefined);
+    assert.equal(status.data.maintenanceOrders.items, undefined);
+    assert.ok(status.data.productionOrders.total > 0);
+
+    const maint = await call(srv, 'list_checklist_tasks', { category: 'maintenance_order', state: 'overdue' });
+    assert.ok(maint.data.items.length > 0);
+    assert.ok(maint.data.items.every((t) => t.state === 'overdue'));
+    const prod = await call(srv, 'list_checklist_tasks', { category: 'production_order', state: 'done' });
+    assert.ok(prod.data.items.every((t) => t.state === 'done'));
 
     const grir = await call(srv, 'list_grir_items', { flagged_only: true, limit: 2 });
     assert.ok(grir.data.items.length <= 2);

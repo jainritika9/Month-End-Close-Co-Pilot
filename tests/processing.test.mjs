@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  parseSapDate, parseAmount, daysBetween, normalize, analyzeChecklist, analyzeUnposted, analyzeGrir,
-  aggregateGrirLineItems, analyzeAccruals, buildSnapshot, buildAlerts,
+  parseSapDate, parseAmount, daysBetween, normalize, analyzeChecklist, deriveOrderStatus, analyzeUnposted,
+  analyzeGrir, aggregateGrirLineItems, analyzeAccruals, buildSnapshot, buildAlerts, combineChecklistSummaries,
 } from '../src/lib/processing.js';
 import { parseODataPage, buildUrl, fillPlaceholders, mergeJoinedRows } from '../src/lib/sapClient.js';
 import { deepMerge, periodVars, stripSecrets, requiredOrigins } from '../src/lib/config.js';
@@ -82,6 +82,53 @@ test('checklist dueDateIsAge + statusMeansDoneWhenNonBlank: the real config.sour
   const r = analyzeChecklist(rows, src, today, { checklistSlaDays: 10 });
   assert.deepEqual(r.items.map((t) => t.state), ['overdue', 'open', 'done']);
   assert.deepEqual(r.items.map((t) => t.name), ['Inspection lot 1', 'Inspection lot 2', 'Inspection lot 3']);
+});
+
+test('deriveOrderStatus: production order boolean flags and maintenance order status text', () => {
+  const flagSource = { doneWhenFlagSet: ['OrderIsTechnicallyCompleted', 'OrderIsClosed'] };
+  const flagRows = deriveOrderStatus(
+    [
+      { ManufacturingOrder: '1', OrderIsTechnicallyCompleted: 'X', OrderIsClosed: '' },
+      { ManufacturingOrder: '2', OrderIsTechnicallyCompleted: '', OrderIsClosed: 'X' },
+      { ManufacturingOrder: '3', OrderIsTechnicallyCompleted: '', OrderIsClosed: '' },
+    ],
+    flagSource,
+  );
+  assert.deepEqual(flagRows.map((r) => r._derivedStatus), ['DONE', 'DONE', '']);
+
+  const textSource = { doneWhenTextContains: { field: 'SystemStatusText', tokens: ['TECO', 'CLSD'] } };
+  const textRows = deriveOrderStatus(
+    [
+      { MaintenanceOrder: '1', SystemStatusText: 'TECO CNF PRC' },
+      { MaintenanceOrder: '2', SystemStatusText: 'REL  CRTD' },
+      { MaintenanceOrder: '3', SystemStatusText: 'CLSD SETC' },
+    ],
+    textSource,
+  );
+  assert.deepEqual(textRows.map((r) => r._derivedStatus), ['DONE', '', 'DONE']);
+});
+
+test('production order and maintenance order sources use real due dates (dueDateIsAge is not set)', () => {
+  assert.equal(config.sources.productionOrder.dueDateIsAge, undefined);
+  assert.equal(config.sources.maintenanceOrder.dueDateIsAge, undefined);
+  const rows = deriveOrderStatus(
+    [
+      { ManufacturingOrder: '1', OrderIsTechnicallyCompleted: '', OrderIsClosed: '', MfgOrderScheduledEndDate: day(-5) },
+      { ManufacturingOrder: '2', OrderIsTechnicallyCompleted: '', OrderIsClosed: '', MfgOrderScheduledEndDate: day(5) },
+    ],
+    config.sources.productionOrder,
+  );
+  const r = analyzeChecklist(rows, config.sources.productionOrder, today);
+  assert.deepEqual(r.items.map((t) => t.state), ['overdue', 'open']);
+});
+
+test('combineChecklistSummaries sums the 3 checklist-like categories into one figure', () => {
+  const combined = combineChecklistSummaries({
+    checklist: { total: 10, done: 5, open: 3, overdue: 2, error: 0 },
+    productionOrder: { total: 4, done: 4, open: 0, overdue: 0, error: 0 },
+  });
+  assert.deepEqual(combined, { total: 14, done: 9, open: 3, overdue: 2, error: 0, completionPct: 64 });
+  assert.equal(combineChecklistSummaries({}), null);
 });
 
 test('unposted documents are filtered by threshold and sorted by amount', () => {
@@ -184,6 +231,7 @@ test('buildAlerts never names individual checklist items, however many there are
   assert.ok(alert, 'the overdue alert fires with the full count in its title');
   assert.doesNotMatch(alert.detail, /Inspection lot/, 'no item names in the detail line');
   assert.equal(alert.detail, 'Open longer than 10 days');
+  assert.equal(alert.tab, 'checklist', 'lets a click switch the shared card to this sub-tab');
 });
 
 test('buildAlerts describes overdue checklist items differently for the two due-date semantics', () => {
@@ -194,9 +242,22 @@ test('buildAlerts describes overdue checklist items differently for the two due-
   assert.equal(literal[0].detail, 'Past their due date');
 });
 
+test('buildAlerts fires separate, correctly-worded alerts for production and maintenance orders', () => {
+  const alerts = buildAlerts(
+    { productionOrder: { error: 0, overdue: 2, dueDateIsAge: false }, maintenanceOrder: { error: 1, overdue: 0 } },
+    {},
+  );
+  const prod = alerts.find((a) => a.category === 'checklist' && a.tab === 'productionOrder');
+  const maint = alerts.find((a) => a.category === 'checklist' && a.tab === 'maintenanceOrder');
+  assert.equal(prod.title, '2 production order(s) overdue');
+  assert.equal(prod.detail, 'Past their due date');
+  assert.equal(maint.title, '1 maintenance order(s) failed');
+});
+
 test('buildSnapshot on demo data produces all sections and sorted alerts', () => {
   const snap = buildSnapshot(mockRaw(config, today), config, today);
-  assert.deepEqual(Object.keys(snap.summary).sort(), ['accruals', 'checklist', 'grir', 'unposted']);
+  assert.deepEqual(Object.keys(snap.summary).sort(),
+    ['accruals', 'checklist', 'grir', 'maintenanceOrder', 'productionOrder', 'unposted']);
   assert.ok(snap.alerts.length > 0);
   const rank = { high: 0, medium: 1, low: 2 };
   for (let i = 1; i < snap.alerts.length; i++) assert.ok(rank[snap.alerts[i - 1].severity] <= rank[snap.alerts[i].severity]);
@@ -208,6 +269,16 @@ test('buildSnapshot on demo data produces all sections and sorted alerts', () =>
   // 7 demo PO items, one of which nets to exactly zero (fully matched) and is excluded - confirms
   // the raw line items survive groupByPoItem aggregation before analyzeGrir sees them.
   assert.equal(snap.summary.grir.count, 6);
+  // 6 demo rows each: 2 done, 2 not-yet-due (open), 2 overdue.
+  assert.equal(snap.summary.productionOrder.done, 2);
+  assert.equal(snap.summary.productionOrder.overdue, 2);
+  assert.equal(snap.summary.maintenanceOrder.done, 2);
+  assert.equal(snap.summary.maintenanceOrder.overdue, 2);
+  // Checklist: 12 items, 6 done, 3 overdue, 3 open (completionPct 50, asserted above). Plus 6+6
+  // order items, 2 done/2 open/2 overdue each.
+  assert.deepEqual(combineChecklistSummaries(snap.summary), {
+    total: 24, done: 10, open: 7, overdue: 7, error: 0, completionPct: 42,
+  });
 });
 
 test('buildSnapshot reports per-source errors without failing others', () => {

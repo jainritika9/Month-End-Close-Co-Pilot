@@ -26,20 +26,26 @@ function sectionOrError(snap, key) {
   return snap.summary[key];
 }
 
+const CHECKLIST_KEYS = { inspection_lot: 'checklist', production_order: 'productionOrder', maintenance_order: 'maintenanceOrder' };
+
 const TOOLS = [
   {
     name: 'get_close_status',
     description:
-      'Month-end close overview for a company code and period: checklist completion, counts and amounts of ' +
-      'unposted/parked documents, open GR/IR, missing accruals, plus the ranked list of exceptions (alerts). ' +
-      'Start here for any "how is the close going" question.',
+      'Month-end close overview for a company code and period: close checklist completion (inspection lots, ' +
+      'production orders and maintenance orders), counts and amounts of unposted/parked documents, open GR/IR, ' +
+      'missing accruals, plus the ranked list of exceptions (alerts). Start here for any "how is the close ' +
+      'going" question.',
     inputSchema: { type: 'object', properties: { ...periodProps }, additionalProperties: false },
     async run(a) {
       const snap = await getSnapshot(snapArgs(a));
       const s = snap.summary;
+      const withoutItems = (section) => section && (({ items, ...rest }) => rest)(section);
       return {
         context: snap.context,
-        checklist: s.checklist && (({ items, ...rest }) => rest)(s.checklist),
+        checklist: withoutItems(s.checklist),
+        productionOrders: withoutItems(s.productionOrder),
+        maintenanceOrders: withoutItems(s.maintenanceOrder),
         unposted: s.unposted && { count: s.unposted.count, totalAmount: s.unposted.totalAmount, currency: s.unposted.currency },
         grir: s.grir && (({ items, ...rest }) => rest)(s.grir),
         accruals: s.accruals && (({ items, ...rest }) => rest)(s.accruals),
@@ -50,11 +56,18 @@ const TOOLS = [
   },
   {
     name: 'list_checklist_tasks',
-    description: 'Close checklist tasks with owner, due date and state (done, open, overdue, error).',
+    description:
+      'Close checklist tasks with due date and state (done, open, overdue, error). Covers 3 categories: ' +
+      'inspection_lot (EAM/QM inspection lots, the default), production_order and maintenance_order.',
     inputSchema: {
       type: 'object',
       properties: {
         ...periodProps,
+        category: {
+          type: 'string',
+          enum: ['inspection_lot', 'production_order', 'maintenance_order'],
+          description: 'Which checklist category to list (default inspection_lot).',
+        },
         state: { type: 'string', enum: ['all', 'open', 'overdue', 'error', 'done'], description: 'Filter by state (default all).' },
         limit: limitProp,
       },
@@ -62,9 +75,10 @@ const TOOLS = [
     },
     async run(a) {
       const snap = await getSnapshot(snapArgs(a));
-      const c = sectionOrError(snap, 'checklist');
+      const key = CHECKLIST_KEYS[a.category ?? 'inspection_lot'];
+      const c = sectionOrError(snap, key);
       const items = c.items.filter((t) => !a.state || a.state === 'all' || t.state === a.state);
-      return { context: snap.context, completionPct: c.completionPct, total: items.length, items: items.slice(0, a.limit ?? 50).map(slim) };
+      return { context: snap.context, category: a.category ?? 'inspection_lot', completionPct: c.completionPct, total: items.length, items: items.slice(0, a.limit ?? 50).map(slim) };
     },
   },
   {

@@ -42,6 +42,38 @@ export function mockRaw(config, today = new Date()) {
     id: `${10000231 + i}`, status, dueDate: d(off), category,
   }));
 
+  // Shaped like the standard API_PRODUCTION_ORDER_2_SRV data this now reads (see
+  // config.sources.productionOrder). OrderIsTechnicallyCompleted/OrderIsClosed are raw 'X'/''
+  // flags - not mapped via `fields` since deriveOrderStatus reads them directly (by their real SAP
+  // names) before the id/name/status/dueDate/category mapping runs, combining them into one
+  // done/not-done state. Real due date, so (unlike checklist) overdue means literally past due.
+  const productionOrders = [
+    ['60001234', 'FG-COLA-500ML', -20, 'PP01', 'X', ''], // done (technically completed)
+    ['60001235', 'FG-COLA-1.5L', -14, 'PP01', '', 'X'], // done (closed)
+    ['60001236', 'FG-LEMON-500ML', 5, 'PP02', '', ''], // not yet due -> open
+    ['60001237', 'FG-LEMON-1.5L', 10, 'PP02', '', ''], // not yet due -> open
+    ['60001238', 'FG-COLA-330ML-CAN', -3, 'PP01', '', ''], // overdue
+    ['60001239', 'FG-LEMON-330ML-CAN', -8, 'PP02', '', ''], // overdue
+  ].map(([id, material, off, category, teco, closed]) => ({
+    ManufacturingOrder: id, Material: material, MfgOrderScheduledEndDate: d(off),
+    ManufacturingOrderType: category, OrderIsTechnicallyCompleted: teco, OrderIsClosed: closed,
+  }));
+
+  // Shaped like the standard API_MAINTENANCEORDER data this now reads (see
+  // config.sources.maintenanceOrder). SystemStatusText is a space-separated status-code text, not
+  // a boolean - deriveOrderStatus checks it for TECO/CLSD the same way, before the field mapping.
+  const maintenanceOrders = [
+    ['400900001', 'Bottling line 3 - pump seal replacement', -20, 'PM01', 'TECO CNF PRC SETC'], // done
+    ['400900002', 'Filler nozzle inspection', -14, 'PM02', 'CLSD SETC'], // done
+    ['400900003', 'Conveyor belt tension check', 5, 'PM01', 'REL CRTD'], // not yet due -> open
+    ['400900004', 'Palletizer sensor calibration', 10, 'PM02', 'REL CRTD'], // not yet due -> open
+    ['400900005', 'CIP system valve leak', -3, 'PM01', 'REL PRC'], // overdue
+    ['400900006', 'Compressor annual service', -8, 'PM02', 'REL CRTD'], // overdue
+  ].map(([id, desc, off, category, statusText]) => ({
+    MaintenanceOrder: id, MaintenanceOrderDesc: desc, MaintOrdBasicEndDate: d(off),
+    MaintenanceOrderType: category, SystemStatusText: statusText,
+  }));
+
   const unposted = [
     ['1900004411', 'SA', -8, '12500.00', 'JCHEN', 'Rent accrual correction'],
     ['1900004418', 'KR', -2, '3890.50', 'SRAO', 'Vendor invoice – logistics'],
@@ -86,6 +118,8 @@ export function mockRaw(config, today = new Date()) {
 
   return {
     checklist: toSap(checklist, s.checklist.fields),
+    productionOrder: productionOrders,
+    maintenanceOrder: maintenanceOrders,
     unposted: toSap(unposted, s.unposted.fields),
     grir: toSap(grirLines, s.grir.lineItemFields),
     accruals: toSap(accruals, s.accruals.fields),

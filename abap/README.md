@@ -2,7 +2,7 @@
 
 These are the read-only OData services that the browser extension reads. They need S/4HANA 2020 or later (on-premise or RISE private cloud).
 
-**The close checklist and open GR/IR items need no custom ABAP at all.** The checklist reads the standard, SAP-delivered `API_INSPECTIONLOT_SRV` (`A_InspectionLot` + `A_InspLotUsageDecision`) - see the "Close checklist: standard API" section below. GR/IR reads the standard `API_OPLACCTGDOCITEMCUBE_SRV` - see "Open GR/IR items: standard API" below. Only unposted documents and accruals still need the custom objects listed here.
+**The close checklist and open GR/IR items need no custom ABAP at all.** The checklist is now 3 tabs, each its own standard SAP API, no custom ABAP for any of them: EAM/QM inspection lots (`API_INSPECTIONLOT_SRV`), production orders (`API_PRODUCTION_ORDER_2_SRV`) and maintenance orders (`API_MAINTENANCEORDER`) - see "Close checklist: standard APIs" below. GR/IR reads the standard `API_OPLACCTGDOCITEMCUBE_SRV` - see "Open GR/IR items: standard API" below. Only unposted documents and accruals still need the custom objects listed here.
 
 The 2 exposed views are **classic DDIC-based CDS views with `@OData.publish: true`**, because that annotation doesn't work on view entities. Each exposed view generates its own OData V2 service, so there is no service definition or binding. The helper views are CDS view entities.
 
@@ -43,7 +43,11 @@ Create all objects in one package, e.g. a new `ZMWC_R2R_CLOSE`, on one transport
 6. Also register the standard `API_INSPECTIONLOT_SRV` and `API_OPLACCTGDOCITEMCUBE_SRV` the same way (they're SAP-delivered, so only registration is needed, not creation) - see the checklist and GR/IR sections below.
 7. Optional: in SE54, generate table maintenance for `ZMWC_R2R_ACCPLN` so finance can maintain it in SM30.
 
-## Close checklist: standard API, no custom ABAP
+## Close checklist: standard APIs, no custom ABAP
+
+The close checklist is 3 tabs on the dashboard, each its own independently-fetched standard API and its own donut/table: inspection lots, production orders and maintenance orders (`CHECKLIST_CATEGORIES` in `src/lib/processing.js`; the tab bar is `renderChecklistCard` in `src/dashboard/render.js`). All 3 feed the same `analyzeChecklist` logic and the same alert-building code, parameterised by source config - see the 3 sub-sections below.
+
+### Inspection lots
 
 `config/default-config.json`'s `sources.checklist` points straight at `API_INSPECTIONLOT_SRV` (`A_InspectionLot`), SAP's standard Quality Management API for inspection lots - confirmed present in this system. Two things make this different from the other 3 sources:
 
@@ -59,6 +63,22 @@ Two fields this API doesn't have are made up for in `processing.js`:
 There's still no owner field, same limitation as before.
 
 **Known caveat, found by checking real data:** in this system, sorting all accessible inspection lots by `InspectionLotCreatedOn` descending, the *newest* one is from 2015-05-06 - nothing more recent exists (or is visible to this user) at all. This isn't a bug in the query; it reflects either that QM inspection lots aren't part of this company's live process any more, or that this user's authorization/plant scope only covers old data. Until that's resolved, this section may show stale 2015 data rather than the current period's real state - worth confirming with your QM/Basis team before relying on it for an actual close decision.
+
+### Production orders
+
+`config/default-config.json`'s `sources.productionOrder` points at `API_PRODUCTION_ORDER_2_SRV` (`A_ProductionOrder_2`), SAP's standard discrete-manufacturing production order API - confirmed active and its fields verified against real `$metadata`. Unlike inspection lots, this entity has a real company code (`CompanyCode`) and real due dates (`MfgOrderScheduledEndDate`), so `dueDateIsAge` is **not** set here - overdue means literally past due, the same as unposted documents and accruals.
+
+- **"Done" is 2 separate boolean flags, not one status field.** `OrderIsTechnicallyCompleted` and `OrderIsClosed` are each a raw `'X'`/`''` flag. `deriveOrderStatus` in `processing.js` (source config: `doneWhenFlagSet: ['OrderIsTechnicallyCompleted', 'OrderIsClosed']`) combines them into one synthetic `_derivedStatus` field ('DONE' or '') before `analyzeChecklist` reads it via the same `statusMeansDoneWhenNonBlank` mechanism the inspection-lot source uses - an order counts as done if *either* flag is set.
+- **No free-text order name** - `fields.name` uses `Material` (the product being produced), which is more informative than an order number alone.
+
+**Known caveat, found by checking real data:** this company code returns **0 rows** from this API, checked both with `CompanyCode eq '7827'` and with no filter at all - there is no discrete production order data anywhere accessible to this user. This is consistent with this being a process-manufacturing (PP-PI, e.g. beverage bottling) site rather than a discrete-manufacturing one; process orders use a different order category and API entirely. A live search of this system's service catalog (`/api/catalog?keyword=...` - see "Unposted/parked documents" below for how that tool works) for `PROCESSORDER`, `PROCESS_ORDER` and `PRODNORD` found nothing registered either, so no process-order API could be verified as a replacement. The tab is still wired up - in case Basis registers a process-order API later, or another company code in this system has discrete production orders - but expect it to show "Nothing to show" here.
+
+### Maintenance orders
+
+`config/default-config.json`'s `sources.maintenanceOrder` points at `API_MAINTENANCEORDER` (`MaintenanceOrder`), SAP's standard plant-maintenance order API - confirmed active **with real, current data** for this company code (checked live, ordered by creation date - most recent orders were created within days of this check). Also has a real company code and due date (`MaintOrdBasicEndDate`), so `dueDateIsAge` is not set here either.
+
+- **"Done" is a status-code text, not a boolean.** This API has no boolean completion flag - `SystemStatusText` is a space-separated list of SAP status abbreviations (e.g. `"TECO CNF PRC SETC"`). `deriveOrderStatus`'s `doneWhenTextContains: { field: 'SystemStatusText', tokens: ['TECO', 'CLSD'] }` checks whether either abbreviation appears anywhere in that text - `TECO` (technically completed) or `CLSD` (closed) - feeding the same synthetic `_derivedStatus` field production orders use.
+- **Free-text name**: `fields.name` uses `MaintenanceOrderDesc`, a real description field this API has (unlike inspection lots, which have none).
 
 ## Open GR/IR items: standard API, no custom ABAP
 
@@ -85,8 +105,8 @@ I wrote these views without access to your system. Names are based on standard S
 
 A user who runs the dashboard needs:
 
-- **`S_SERVICE`**: start authorization for each service, including the standard `API_INSPECTIONLOT_SRV` and `API_OPLACCTGDOCITEMCUBE_SRV`. In PFCG, go to Menu → Authorization Default → *SAP Gateway: Service Groups Metadata* and add all 4. Without it, calls return 403 and `SU53` shows `S_SERVICE`.
-- **`F_BKPF_BUK`**, activity `03`, for the company codes they should see. The 2 custom views' access controls filter by this, so users without it get 0 rows rather than an error - same check as FB03 and FBL3N. `API_INSPECTIONLOT_SRV` has its own standard QM authorization instead (e.g. `Q_QMEL`/plant-based authorization) - check with your QM team what your users already need for IQS1/IQS21, since this API enforces the same. `API_OPLACCTGDOCITEMCUBE_SRV` reads the same universal journal data as `F_BKPF_BUK`-protected FI documents; this session's user returned real GR/IR data with no separate PFCG change, but confirm with your Basis team before assuming that holds for every user.
+- **`S_SERVICE`**: start authorization for each service, including the 4 standard ones (`API_INSPECTIONLOT_SRV`, `API_PRODUCTION_ORDER_2_SRV`, `API_MAINTENANCEORDER`, `API_OPLACCTGDOCITEMCUBE_SRV`). In PFCG, go to Menu → Authorization Default → *SAP Gateway: Service Groups Metadata* and add all 6. Without it, calls return 403 and `SU53` shows `S_SERVICE`.
+- **`F_BKPF_BUK`**, activity `03`, for the company codes they should see. The 2 custom views' access controls filter by this, so users without it get 0 rows rather than an error - same check as FB03 and FBL3N. `API_INSPECTIONLOT_SRV` has its own standard QM authorization instead (e.g. `Q_QMEL`/plant-based authorization) - check with your QM team what your users already need for IQS1/IQS21, since this API enforces the same. `API_PRODUCTION_ORDER_2_SRV` and `API_MAINTENANCEORDER` similarly have their own standard PP/PM order-authorization objects, not `F_BKPF_BUK` - I haven't checked their exact names against this system (unlike everything else in this file, which has been checked live), so verify with your PP/PM team what your users need for CO03/IW33 before assuming a new user can see this data. `API_OPLACCTGDOCITEMCUBE_SRV` reads the same universal journal data as `F_BKPF_BUK`-protected FI documents; this session's user returned real data from all 3 of these without a separate PFCG change, but confirm with your Basis team before assuming that holds for every user.
 
 ## Test URLs (`/IWFND/GW_CLIENT` or a browser)
 
@@ -96,6 +116,10 @@ A user who runs the dashboard needs:
 /sap/opu/odata/sap/API_INSPECTIONLOT_SRV/$metadata
 /sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspectionLot?$top=5&$format=json
 /sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspLotUsageDecision?$top=5&$format=json
+/sap/opu/odata/sap/API_PRODUCTION_ORDER_2_SRV/$metadata
+/sap/opu/odata/sap/API_PRODUCTION_ORDER_2_SRV/A_ProductionOrder_2?$filter=CompanyCode eq '7827'&$top=5&$format=json
+/sap/opu/odata/sap/API_MAINTENANCEORDER/$metadata
+/sap/opu/odata/sap/API_MAINTENANCEORDER/MaintenanceOrder?$filter=CompanyCode eq '7827'&$top=5&$format=json
 /sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/$metadata
 /sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/A_OperationalAcctgDocItemCube?$filter=CompanyCode eq '7827' and GLAccount eq '241101001' and IsCleared eq false&$top=5&$format=json
 ```
