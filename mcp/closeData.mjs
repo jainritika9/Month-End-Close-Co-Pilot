@@ -37,12 +37,14 @@ export async function loadConfig() {
   const client = option('SAP_CLIENT', 'sap_client');
   const companyCode = option('SAP_COMPANY_CODE', 'company_code');
   const plant = option('SAP_PLANT', 'plant');
+  const grirAccount = option('SAP_GRIR_ACCOUNT', 'grir_account');
   const fiscalYear = option('SAP_FISCAL_YEAR', 'fiscal_year');
   const demo = option('SAP_DEMO_MODE', 'demo_mode');
   if (baseUrl) overrides.sap.baseUrl = baseUrl;
   if (client) overrides.sap.client = client;
   if (companyCode) overrides.sap.companyCode = companyCode;
   if (plant) overrides.sap.plant = plant;
+  if (grirAccount) overrides.sap.grirAccount = grirAccount;
   if (fiscalYear) overrides.sap.fiscalYear = fiscalYear;
   if (demo !== null) overrides.demoMode = /^(true|1|yes)$/i.test(demo);
   return deepMerge(config, overrides);
@@ -222,6 +224,31 @@ export async function fetchServiceMetadata(service) {
   const text = await res.text();
   if (res.status === 401) throw authError('SAP rejected the user name or password (401).');
   if (!res.ok) throw new Error(`SAP returned ${res.status} for ${service}: ${text.slice(0, 300)}`);
+  return text;
+}
+
+/**
+ * Fetches a few real rows from an OData entity set using the current session, for verifying real
+ * data (not just schema) - e.g. whether fields the metadata promises are actually populated and
+ * recent, before wiring up a new standard API. `service`/`entitySet` must be bare technical names.
+ */
+export async function fetchServiceSample(service, entitySet, { top = 5, filter } = {}) {
+  if (!/^[A-Za-z0-9_]+$/.test(service)) throw new Error('Invalid service name');
+  if (!/^[A-Za-z0-9_]+$/.test(entitySet)) throw new Error('Invalid entity set name');
+  const config = await loadConfig();
+  if (config.demoMode) throw new Error('Demo mode is on - there is no SAP connection to fetch data from.');
+  const creds = credentials();
+  if (!creds) throw authError('Not signed in to SAP.');
+  const authHeader = 'Basic ' + Buffer.from(`${creds.user}:${creds.password}`).toString('base64');
+  const url = new URL(`/sap/opu/odata/sap/${service}/${entitySet}`, config.sap.proxyUrl || config.sap.baseUrl);
+  url.searchParams.set('sap-client', config.sap.client);
+  url.searchParams.set('$format', 'json');
+  url.searchParams.set('$top', String(Math.min(Number(top) || 5, 20)));
+  if (filter) url.searchParams.set('$filter', filter);
+  const res = await fetch(url, { headers: { Authorization: authHeader, Accept: 'application/json' } });
+  const text = await res.text();
+  if (res.status === 401) throw authError('SAP rejected the user name or password (401).');
+  if (!res.ok) throw new Error(`SAP returned ${res.status} for ${service}/${entitySet}: ${text.slice(0, 300)}`);
   return text;
 }
 

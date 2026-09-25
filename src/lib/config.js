@@ -79,5 +79,8 @@ export function periodVars(config, date = new Date()) {
     // Some sources (e.g. the EAM/QM-based checklist) have no company code and scope by plant
     // instead - see config.sap.plant.
     plant: config.sap.plant ?? '',
+    // The GR/IR clearing G/L account (see config.sap.grirAccount) - a standard line-item API has
+    // no "is this a GR/IR posting" flag, only the account it's posted to.
+    grirAccount: config.sap.grirAccount ?? '',
   };
 }

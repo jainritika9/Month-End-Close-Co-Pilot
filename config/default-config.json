@@ -6,6 +6,7 @@
     "client": "100",
     "companyCode": "7827",
     "plant": "",
+    "grirAccount": "241101001",
     "fiscalYear": "2026",
     "fiscalYearStartMonth": 1,
     "proxyUrl": "",
@@ -68,13 +69,24 @@
     },
     "grir": {
       "label": "Open GR/IR items",
-      "path": "/sap/opu/odata/sap/ZI_R2R_GRIROPENITEM_CDS/ZI_R2R_GRIROpenItem",
+      "_comment": "Standard SAP API (API_OPLACCTGDOCITEMCUBE_SRV), no custom ABAP - filtered to the GR/IR clearing G/L account (sap.grirAccount) and uncleared lines. This entity is individual accounting document line items, not a pre-aggregated PO-item balance the way the old CDS view was, so groupByPoItem tells the extension to sum GR vs IR lines per PO item client-side first (see processing.js's aggregateGrirLineItems) - a goods receipt posts credit (H) to this account, an invoice receipt posts debit (S), which is how the two are told apart. Field names and the account number were verified against this system's real $metadata and data, not just documentation - see abap/README.md.",
+      "path": "/sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/A_OperationalAcctgDocItemCube",
       "query": {
-        "$filter": "CompanyCode eq '{companyCode}'"
+        "$filter": "CompanyCode eq '{companyCode}' and GLAccount eq '{grirAccount}' and IsCleared eq false"
+      },
+      "groupByPoItem": true,
+      "lineItemFields": {
+        "poNumber": "PurchasingDocument",
+        "poItem": "PurchasingDocumentItem",
+        "supplier": "SupplierName",
+        "currency": "CompanyCodeCurrency",
+        "amount": "AmountInCompanyCodeCurrency",
+        "debitCredit": "DebitCreditCode",
+        "postingDate": "PostingDate"
       },
       "fields": {
-        "id": "PurchaseOrder",
-        "item": "PurchaseOrderItem",
+        "id": "PurchasingDocument",
+        "item": "PurchasingDocumentItem",
         "supplier": "SupplierName",
         "grAmount": "GoodsReceiptAmount",
         "irAmount": "InvoiceReceiptAmount",

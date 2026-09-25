@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import {
   parseSapDate, parseAmount, daysBetween, normalize, analyzeChecklist, analyzeUnposted, analyzeGrir,
-  analyzeAccruals, buildSnapshot, buildAlerts,
+  aggregateGrirLineItems, analyzeAccruals, buildSnapshot, buildAlerts,
 } from '../src/lib/processing.js';
 import { parseODataPage, buildUrl, fillPlaceholders, mergeJoinedRows } from '../src/lib/sapClient.js';
 import { deepMerge, periodVars, stripSecrets, requiredOrigins } from '../src/lib/config.js';
@@ -97,8 +97,17 @@ test('unposted documents are filtered by threshold and sorted by amount', () => 
   assert.equal(r.totalAmount, 500);
 });
 
+// A minimal, self-contained field mapping - independent of the live config's grir source shape
+// (currently API_OPLACCTGDOCITEMCUBE_SRV, aggregated first via aggregateGrirLineItems), so these
+// generic tests keep testing analyzeGrir's own logic rather than that source's specifics.
+const genericGrirFields = {
+  id: 'PurchaseOrder', item: 'PurchaseOrderItem', supplier: 'Supplier',
+  grAmount: 'GoodsReceiptAmount', irAmount: 'InvoiceReceiptAmount', currency: 'CompanyCodeCurrency',
+  lastMovementDate: 'LastMovementDate',
+};
+
 test('GR/IR flags old, material differences and buckets by age', () => {
-  const src = { ...config.sources.grir, signedAmounts: false };
+  const src = { fields: genericGrirFields, signedAmounts: false };
   const rows = [
     { PurchaseOrder: '1', GoodsReceiptAmount: '5000', InvoiceReceiptAmount: '0', LastMovementDate: day(-95) },
     { PurchaseOrder: '2', GoodsReceiptAmount: '5000', InvoiceReceiptAmount: '0', LastMovementDate: day(-5) },
@@ -113,7 +122,7 @@ test('GR/IR flags old, material differences and buckets by age', () => {
 });
 
 test('GR/IR signed amounts (as posted on the GR/IR account) are normalised', () => {
-  const src = { ...config.sources.grir, signedAmounts: true };
+  const src = { fields: genericGrirFields, signedAmounts: true };
   const rows = [
     // GR 5000 credited, IR 3000 debited -> 2000 received but not invoiced
     { PurchaseOrder: '1', GoodsReceiptAmount: '-5000.00', InvoiceReceiptAmount: '3000.00', LastMovementDate: day(-40) },
@@ -126,6 +135,30 @@ test('GR/IR signed amounts (as posted on the GR/IR account) are normalised', () 
   assert.equal(byId['1'].difference, 2000);
   assert.equal(byId['1'].flagged, true);
   assert.equal(byId['2'].difference, -800);
+});
+
+test('aggregateGrirLineItems sums GR (credit) vs IR (debit) lines per PO item', () => {
+  const lineItemFields = config.sources.grir.lineItemFields;
+  const rows = [
+    // One PO item, split across a GR line and a later IR line.
+    { PurchasingDocument: '1', PurchasingDocumentItem: '10', SupplierName: 'Acme', CompanyCodeCurrency: 'EUR',
+      AmountInCompanyCodeCurrency: '-5000.00', DebitCreditCode: 'H', PostingDate: day(-40) },
+    { PurchasingDocument: '1', PurchasingDocumentItem: '10', SupplierName: 'Acme', CompanyCodeCurrency: 'EUR',
+      AmountInCompanyCodeCurrency: '3000.00', DebitCreditCode: 'S', PostingDate: day(-10) },
+    // A second, GR-only PO item.
+    { PurchasingDocument: '2', PurchasingDocumentItem: '20', SupplierName: 'Beta', CompanyCodeCurrency: 'EUR',
+      AmountInCompanyCodeCurrency: '-800.00', DebitCreditCode: 'H', PostingDate: day(-5) },
+  ];
+  const groups = aggregateGrirLineItems(rows, lineItemFields);
+  assert.equal(groups.length, 2);
+  const g1 = groups.find((g) => g.PurchasingDocument === '1');
+  assert.equal(g1.GoodsReceiptAmount, -5000);
+  assert.equal(g1.InvoiceReceiptAmount, 3000);
+  // The most recent of the group's line dates, not the first.
+  assert.equal(g1.LastMovementDate.toISOString().slice(0, 10), parseSapDate(day(-10)).toISOString().slice(0, 10));
+  const g2 = groups.find((g) => g.PurchasingDocument === '2');
+  assert.equal(g2.GoodsReceiptAmount, -800);
+  assert.equal(g2.InvoiceReceiptAmount, 0);
 });
 
 test('accruals: missing, variance within/over tolerance, overdue', () => {
@@ -172,6 +205,9 @@ test('buildSnapshot on demo data produces all sections and sorted alerts', () =>
   assert.equal(snap.summary.checklist.overdue, 3);
   assert.equal(snap.summary.checklist.completionPct, 50);
   assert.equal(snap.summary.accruals.missingCount, 3);
+  // 7 demo PO items, one of which nets to exactly zero (fully matched) and is excluded - confirms
+  // the raw line items survive groupByPoItem aggregation before analyzeGrir sees them.
+  assert.equal(snap.summary.grir.count, 6);
 });
 
 test('buildSnapshot reports per-source errors without failing others', () => {
@@ -200,21 +236,24 @@ test('mergeJoinedRows left-joins by key, e.g. inspection lots + their Usage Deci
 
 test('buildUrl fills placeholders and escapes quotes', () => {
   assert.equal(fillPlaceholders("X eq '{a}' and {missing}", { a: "O'Neil" }), "X eq 'O''Neil' and {missing}");
-  const url = buildUrl(config, config.sources.grir, { companyCode: '1000' });
+  const url = buildUrl(config, config.sources.grir, { companyCode: '1000', grirAccount: '241101001' });
   assert.equal(url.origin, 'https://my-s4-system.example.com');
   assert.equal(url.searchParams.get('sap-client'), '100');
-  assert.equal(url.searchParams.get('$filter'), "CompanyCode eq '1000'");
+  assert.equal(url.searchParams.get('$filter'), "CompanyCode eq '1000' and GLAccount eq '241101001' and IsCleared eq false");
   const proxied = buildUrl({ ...config, sap: { ...config.sap, proxyUrl: 'https://proxy.local' } }, config.sources.grir, {});
   assert.equal(proxied.origin, 'https://proxy.local');
 });
 
 test('config helpers', () => {
   assert.deepEqual(deepMerge({ a: { b: 1, c: 2 }, l: [1] }, { a: { c: 3 }, l: [2] }), { a: { b: 1, c: 3 }, l: [2] });
-  assert.deepEqual(periodVars(config, today), { fiscalYear: '2026', period: '009', companyCode: '1000', plant: '' });
+  assert.deepEqual(periodVars(config, today),
+    { fiscalYear: '2026', period: '009', companyCode: '1000', plant: '', grirAccount: '241101001' });
   const fixedFy = { ...config, sap: { ...config.sap, companyCode: '7827', fiscalYear: '2025', plant: '1000' } };
-  assert.deepEqual(periodVars(fixedFy, today), { fiscalYear: '2025', period: '009', companyCode: '7827', plant: '1000' });
+  assert.deepEqual(periodVars(fixedFy, today),
+    { fiscalYear: '2025', period: '009', companyCode: '7827', plant: '1000', grirAccount: '241101001' });
   const aprilFy = { ...config, sap: { ...config.sap, fiscalYearStartMonth: 4 } };
-  assert.deepEqual(periodVars(aprilFy, today), { fiscalYear: '2027', period: '006', companyCode: '1000', plant: '' });
+  assert.deepEqual(periodVars(aprilFy, today),
+    { fiscalYear: '2027', period: '006', companyCode: '1000', plant: '', grirAccount: '241101001' });
   const secret = structuredClone(config);
   secret.auth.basic.password = 'x';
   secret.auth.oauth2.clientSecret = 'y';

@@ -4,7 +4,7 @@ This is an implementation of [strategy.txt](strategy.txt). It is a Manifest V3 b
 
 - **Close checklist status**: completion % and overdue items, read straight from SAP's standard `API_INSPECTIONLOT_SRV` (EAM/QM inspection lots) — no custom ABAP for this section at all, see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap)
 - **Unposted/parked documents**: amounts and how long they've been waiting
-- **Open GR/IR items**: GR vs IR difference and aging buckets, with items that need clearing flagged
+- **Open GR/IR items**: GR vs IR difference and aging buckets, with items that need clearing flagged, read straight from SAP's standard `API_OPLACCTGDOCITEMCUBE_SRV` (universal journal line items) — no custom ABAP for this section either, see [abap/README.md](abap/README.md#open-grir-items-standard-api-no-custom-abap)
 - **Missing accruals**: planned vs posted amounts, with missing, variance and overdue items flagged
 
 It also has an exceptions list, KPI tiles, charts, filters, a drill-down drawer that shows the raw SAP fields, per-section refresh, background sync, a toolbar badge and desktop notifications.
@@ -104,7 +104,7 @@ This is the same dashboard as the Chrome extension, served as a normal web page 
 
 The server listens on `127.0.0.1` only, so no other computer can open it. The SAP password you enter stays in the server's memory and is never written to disk. SAP is read server-side, so the browser needs no extension and hits no CORS errors. The server is in [web/server.mjs](web/server.mjs). It shares all rendering code with the extension ([src/dashboard/render.js](src/dashboard/render.js)).
 
-**Diagnostic: check a standard API's real field names.** Once signed in on the page, `GET http://localhost:8787/api/metadata?service=<API_NAME>` returns that OData service's real `$metadata` XML, using the signed-in session - useful for confirming field/entity names against your actual system before wiring up a new standard API, instead of relying on documentation alone (see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap) for a case where the documented field name turned out wrong). Not linked from the UI.
+**Diagnostic: check a standard API's real field names and data.** Once signed in on the page, `GET http://localhost:8787/api/metadata?service=<API_NAME>` returns that OData service's real `$metadata` XML, using the signed-in session - useful for confirming field/entity names against your actual system before wiring up a new standard API, instead of relying on documentation alone (see [abap/README.md](abap/README.md#close-checklist-standard-api-no-custom-abap) for a case where the documented field name turned out wrong). `GET http://localhost:8787/api/sample?service=<API_NAME>&entity=<EntitySet>&top=5&filter=<$filter>` returns a few real rows the same way, for checking that fields the schema promises are actually populated with current data (see [abap/README.md](abap/README.md#open-grir-items-standard-api-no-custom-abap) for how this found the real GR/IR clearing account). Neither is linked from the UI.
 
 This only works in Claude Code **on your PC**. In a claude.ai/code web session, `localhost` is the cloud machine, which your browser can't open.
 

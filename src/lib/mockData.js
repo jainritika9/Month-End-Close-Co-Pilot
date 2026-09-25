@@ -52,18 +52,25 @@ export function mockRaw(config, today = new Date()) {
     id, type, postingDate: d(off), amount, currency: 'EUR', createdBy, text,
   }));
 
-  const grir = [
-    ['4500017701', '10', 'Nordic Steel AB', '84000.00', '0.00', -95],
-    ['4500017755', '20', 'Contoso Logistics', '15200.00', '12800.00', -47],
-    ['4500017790', '10', 'Fabrikam Components', '0.00', '9650.00', -62],
-    ['4500017812', '30', 'Tailspin Packaging', '4300.00', '4300.00', -12],
-    ['4500017820', '10', 'Litware Chemicals', '22750.00', '18000.00', -33],
-    ['4500017833', '10', 'Northwind Traders', '640.00', '0.00', -8],
-    ['4500017851', '20', 'Adatum Electronics', '31000.00', '0.00', -18],
-  ].map(([id, item, supplier, grAmount, irAmount, off]) => ({
-    id, item, supplier, irAmount, currency: 'EUR', lastMovementDate: d(off),
-    // Mirror the live service: GR arrives as a (negative) credit when signedAmounts is set.
-    grAmount: s.grir.signedAmounts ? String(-Number(grAmount)) : grAmount,
+  // Shaped like the standard API_OPLACCTGDOCITEMCUBE_SRV data this now reads (see
+  // config.sources.grir): one row per accounting document line item, not a pre-aggregated PO-item
+  // balance - a goods receipt posts credit (H, negative) to the GR/IR account, an invoice receipt
+  // posts debit (S, positive); groupByPoItem sums these per PO item (aggregateGrirLineItems).
+  const grirLines = [
+    ['4500017701', '10', 'Nordic Steel AB', 'GR', '84000.00', -95],
+    ['4500017755', '20', 'Contoso Logistics', 'GR', '15200.00', -47],
+    ['4500017755', '20', 'Contoso Logistics', 'IR', '12800.00', -47],
+    ['4500017790', '10', 'Fabrikam Components', 'IR', '9650.00', -62],
+    ['4500017812', '30', 'Tailspin Packaging', 'GR', '4300.00', -12],
+    ['4500017812', '30', 'Tailspin Packaging', 'IR', '4300.00', -12],
+    ['4500017820', '10', 'Litware Chemicals', 'GR', '22750.00', -33],
+    ['4500017820', '10', 'Litware Chemicals', 'IR', '18000.00', -33],
+    ['4500017833', '10', 'Northwind Traders', 'GR', '640.00', -8],
+    ['4500017851', '20', 'Adatum Electronics', 'GR', '31000.00', -18],
+  ].map(([poNumber, poItem, supplier, side, amount, off]) => ({
+    poNumber, poItem, supplier, currency: 'EUR', postingDate: d(off),
+    debitCredit: side === 'GR' ? 'H' : 'S',
+    amount: side === 'GR' ? String(-Number(amount)) : amount,
   }));
 
   const accruals = [
@@ -80,7 +87,7 @@ export function mockRaw(config, today = new Date()) {
   return {
     checklist: toSap(checklist, s.checklist.fields),
     unposted: toSap(unposted, s.unposted.fields),
-    grir: toSap(grir, s.grir.fields),
+    grir: toSap(grirLines, s.grir.lineItemFields),
     accruals: toSap(accruals, s.accruals.fields),
   };
 }

@@ -42,6 +42,12 @@
       "description": "Scopes the close checklist (EAM inspection lots have no company code, only a plant)",
       "default": ""
     },
+    "grir_account": {
+      "type": "string",
+      "title": "GR/IR clearing account",
+      "description": "G/L account that scopes open GR/IR items (a standard line-item API has no 'is this GR/IR' flag, only the account)",
+      "default": "241101001"
+    },
     "fiscal_year": {
       "type": "string",
       "title": "Fiscal year",
@@ -83,6 +89,7 @@
         "SAP_CLIENT": "${user_config.sap_client}",
         "SAP_COMPANY_CODE": "${user_config.company_code}",
         "SAP_PLANT": "${user_config.plant}",
+        "SAP_GRIR_ACCOUNT": "${user_config.grir_account}",
         "SAP_FISCAL_YEAR": "${user_config.fiscal_year}",
         "SAP_USER": "${user_config.sap_user}",
         "SAP_PASSWORD": "${user_config.sap_password}",

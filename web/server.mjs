@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import {
   getSnapshot, testConnection, setSessionCredentials, hasCredentials, loadConfig, fetchServiceMetadata,
+  fetchServiceSample,
 } from '../mcp/closeData.mjs';
 import { periodVars } from '../src/lib/config.js';
 
@@ -78,6 +79,25 @@ async function handle(req, res) {
       const xml = await fetchServiceMetadata(service);
       res.writeHead(200, { 'Content-Type': 'application/xml', 'Cache-Control': 'no-store' });
       return res.end(xml);
+    } catch (e) {
+      return json(res, e.code === 'SAP_AUTH' ? 401 : 502, { error: e.message });
+    }
+  }
+
+  // Diagnostic only: fetches a few real rows from an entity set using the signed-in session, so
+  // data (not just schema) can be checked - e.g. whether promised fields are actually populated.
+  // Not linked from the UI - used via curl/browser at /api/sample?service=..&entity=..[&top=&filter=].
+  if (url.pathname === '/api/sample' && req.method === 'GET') {
+    const service = url.searchParams.get('service');
+    const entity = url.searchParams.get('entity');
+    if (!service || !entity) return json(res, 400, { error: 'service and entity query params required' });
+    try {
+      const body = await fetchServiceSample(service, entity, {
+        top: url.searchParams.get('top') || undefined,
+        filter: url.searchParams.get('filter') || undefined,
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(body);
     } catch (e) {
       return json(res, e.code === 'SAP_AUTH' ? 401 : 502, { error: e.message });
     }

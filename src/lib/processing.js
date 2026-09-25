@@ -109,6 +109,44 @@ export function analyzeUnposted(rows, source, thresholds, today) {
   };
 }
 
+/**
+ * Aggregates raw GR/IR account line items (one row per accounting document item, as returned by
+ * a standard line-item API like API_OPLACCTGDOCITEMCUBE_SRV) into one row per PO item - the shape
+ * analyzeGrir expects, matching what a custom SUM/GROUP BY CDS view used to produce. Output field
+ * names deliberately match that old view's columns (PurchasingDocument, GoodsReceiptAmount, ...) so
+ * `source.fields` and analyzeGrir itself don't need to change.
+ *
+ * On the GR/IR clearing account, a goods receipt posts credit (H) and an invoice receipt posts
+ * debit (S) - that's the mechanism by which the two net to zero once matched, so the debit/credit
+ * code is what tells the two apart, not a separate flag.
+ */
+export function aggregateGrirLineItems(rows, lineItemFields) {
+  const f = lineItemFields;
+  const groups = new Map();
+  for (const raw of rows) {
+    const key = `${raw[f.poNumber]}|${raw[f.poItem]}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        PurchasingDocument: raw[f.poNumber],
+        PurchasingDocumentItem: raw[f.poItem],
+        SupplierName: raw[f.supplier],
+        CompanyCodeCurrency: raw[f.currency],
+        GoodsReceiptAmount: 0,
+        InvoiceReceiptAmount: 0,
+        LastMovementDate: null,
+      };
+      groups.set(key, g);
+    }
+    const amount = parseAmount(raw[f.amount]);
+    if (String(raw[f.debitCredit]).trim().toUpperCase() === 'H') g.GoodsReceiptAmount += amount;
+    else g.InvoiceReceiptAmount += amount;
+    const date = parseSapDate(raw[f.postingDate]);
+    if (date && (!g.LastMovementDate || date > g.LastMovementDate)) g.LastMovementDate = date;
+  }
+  return [...groups.values()];
+}
+
 export const GRIR_BUCKETS = ['0-30', '31-60', '61-90', '90+'];
 
 function agingBucket(days) {
@@ -236,7 +274,10 @@ export function buildSnapshot(raw, config, today = new Date()) {
   };
   run('checklist', (r) => analyzeChecklist(r, sources.checklist, today, thresholds));
   run('unposted', (r) => analyzeUnposted(r, sources.unposted, thresholds, today));
-  run('grir', (r) => analyzeGrir(r, sources.grir, thresholds, today));
+  run('grir', (r) => analyzeGrir(
+    sources.grir.groupByPoItem ? aggregateGrirLineItems(r, sources.grir.lineItemFields) : r,
+    sources.grir, thresholds, today,
+  ));
   run('accruals', (r) => analyzeAccruals(r, sources.accruals, thresholds, today));
 
   return { syncedAt: today.toISOString(), summary, errors, alerts: buildAlerts(summary, thresholds) };
