@@ -41,6 +41,13 @@ test('web dashboard server: page, API and access restrictions', async () => {
     ['accruals', 'checklist', 'grir', 'maintenanceOrder', 'productionOrder', 'unposted']);
   assert.ok(snap.summary.grir.items[0]._raw, 'drill-down keeps raw SAP fields');
 
+  // The production-order tab's plant selector: an explicit ?plant= overrides the configured
+  // default (blank here) and shows up in context so the input can be pre-filled on reload.
+  const plantSnap = await (await fetch(new URL('/api/snapshot?plant=J316', base))).json();
+  assert.equal(plantSnap.context.plant, 'J316');
+  const noPlantSnap = await (await fetch(new URL('/api/snapshot', base))).json();
+  assert.equal(noPlantSnap.context.plant, '', 'omitting the param uses the configured default');
+
   assert.equal((await fetch(new URL('/src/dashboard/render.js', base))).status, 200);
   assert.equal((await fetch(new URL('/web/app.js', base))).status, 200);
   // Only UI folders are served: no config, tests, package files or traversal.

@@ -124,12 +124,15 @@ export function authError(message) {
 
 /**
  * Returns the analysed close snapshot for a company code / period, fetched live (or demo data).
- * `overrides` may set companyCode, fiscalYear, period ("8" or "008"); `refresh` bypasses the cache.
+ * `overrides` may set companyCode, fiscalYear, period ("8" or "008") or plant (e.g. a per-tab plant
+ * selector - see the production order source's $filter, which uses it when set); `refresh` bypasses
+ * the cache. `plant: ''` is a deliberate override to "no plant", not "unset".
  */
-export async function getSnapshot({ companyCode, fiscalYear, period, refresh = false } = {}) {
+export async function getSnapshot({ companyCode, fiscalYear, period, plant, refresh = false } = {}) {
   const config = await loadConfig();
   if (companyCode) config.sap.companyCode = companyCode;
   if (fiscalYear) config.sap.fiscalYear = String(fiscalYear);
+  if (plant !== undefined) config.sap.plant = plant;
   const today = new Date();
   const vars = periodVars(config, today);
   if (period) vars.period = String(period).padStart(3, '0');
@@ -165,6 +168,7 @@ export async function getSnapshot({ companyCode, fiscalYear, period, refresh = f
       companyCode: vars.companyCode,
       fiscalYear: vars.fiscalYear,
       period: vars.period,
+      plant: vars.plant,
       demoData: !!config.demoMode,
       system: config.demoMode ? null : config.sap.baseUrl,
       syncedAt: snapshot.syncedAt,

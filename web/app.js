@@ -1,7 +1,7 @@
 // Web version of the dashboard page (served by web/server.mjs). Same markup and rendering as the
 // Chrome extension; data comes from the local server's /api instead of chrome.* APIs.
 
-import { setSnapshot, closeDrawer } from '/src/dashboard/render.js';
+import { setSnapshot, closeDrawer, setPlantHandler } from '/src/dashboard/render.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -87,6 +87,15 @@ async function load(refresh) {
     buttons.forEach((b) => (b.disabled = false));
   }
 }
+
+// The production-order tab's plant selector: persist it in the URL like the other period
+// controls, then reload (the server fetches all sources in parallel, same as a card refresh).
+setPlantHandler((tab, plant) => {
+  if (plant) params.set('plant', plant);
+  else params.delete('plant');
+  history.replaceState(null, '', `?${params}`);
+  load(true);
+});
 
 $('refreshAll').addEventListener('click', () => load(true));
 // Per-card refresh buttons reload everything: the server fetches all sources in parallel anyway.

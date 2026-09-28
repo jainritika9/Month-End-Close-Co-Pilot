@@ -1,7 +1,7 @@
 import { getConfig, periodVars, requiredOrigins } from '../lib/config.js';
 import { getSessionInfo, loginBasic, loginOAuth, logout, AuthError } from '../lib/auth.js';
 import { runSync, getSnapshot, clearSnapshot } from '../lib/sync.js';
-import { setSnapshot, closeDrawer } from './render.js';
+import { setSnapshot, closeDrawer, setPlantHandler } from './render.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -41,7 +41,7 @@ async function refreshSession() {
   return { session, needsLogin };
 }
 
-async function sync(only) {
+async function sync(only, plant) {
   const buttons = [...document.querySelectorAll('[data-refresh], #refreshAll')];
   buttons.forEach((b) => (b.disabled = true));
   showBanner(null);
@@ -50,7 +50,7 @@ async function sync(only) {
       showBanner('Access to the SAP host was not granted, so data cannot be loaded. Click Refresh to try again.');
       return;
     }
-    setSnapshot(await runSync({ only }));
+    setSnapshot(await runSync({ only, plant }));
   } catch (e) {
     if (e instanceof AuthError) {
       await refreshSession();
@@ -94,6 +94,7 @@ async function init() {
 
 // ---------- Wiring ----------
 
+setPlantHandler((tab, plant) => sync([tab], plant));
 $('refreshAll').addEventListener('click', () => sync());
 document.querySelectorAll('[data-refresh]').forEach((b) => b.addEventListener('click', () => sync(b.dataset.refresh.split(','))));
 $('openSettings').addEventListener('click', () => chrome.runtime.openOptionsPage());

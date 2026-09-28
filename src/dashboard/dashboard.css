@@ -137,6 +137,10 @@ g.clickable:hover rect:last-of-type, circle.clickable:hover { opacity: 0.8; }
 .subtabs button { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); cursor: pointer; }
 .subtabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 
+.tab-controls:not(:empty) { margin-bottom: 10px; }
+.plant-filter { display: flex; gap: 6px; align-items: center; }
+.plant-filter input { font: inherit; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 9em; }
+
 /* ---------- Filters / tables ---------- */
 .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .filters button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }

@@ -16,6 +16,14 @@ const filters = { checklist: 'all', grir: 'all', accruals: 'all' };
 // Which of the 3 checklist-like sources (inspection lots, production orders, maintenance orders)
 // the shared "Close checklist" card is currently showing.
 let checklistTab = CHECKLIST_CATEGORIES[0][0];
+// Set by the runtime-specific app code (dashboard.js for the extension, web/app.js for the web
+// dashboard), since how a plant selection actually triggers a re-fetch differs between the two.
+let onPlantSubmit = () => {};
+
+/** Registers the handler called with (tabKey, plantValue) when a tab's plant selector is submitted. */
+export function setPlantHandler(fn) {
+  onPlantSubmit = fn;
+}
 
 let snapshot;
 
@@ -153,6 +161,30 @@ function renderChecklistCard(snap) {
       return b;
     }),
   );
+
+  // Production orders are naturally scoped by plant (see abap/README.md) - a per-tab selector,
+  // rather than a global setting, so switching plant doesn't require a trip to Settings.
+  const controls = card.querySelector('.tab-controls');
+  controls.replaceChildren();
+  if (checklistTab === 'productionOrder') {
+    const form = document.createElement('form');
+    form.className = 'plant-filter';
+    const input = document.createElement('input');
+    input.name = 'plant';
+    input.placeholder = 'Plant, e.g. J316';
+    input.setAttribute('aria-label', 'Plant');
+    input.value = snap.context?.plant ?? '';
+    const submit = document.createElement('button');
+    submit.type = 'submit';
+    submit.className = 'btn small';
+    submit.textContent = 'Apply';
+    form.append(input, submit);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      onPlantSubmit('productionOrder', input.value.trim());
+    });
+    controls.appendChild(form);
+  }
 
   const err = card.querySelector('.card-error');
   err.hidden = !snap.errors?.[checklistTab];

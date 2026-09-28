@@ -126,6 +126,8 @@ async function handle(req, res) {
         companyCode: url.searchParams.get('company_code') || undefined,
         fiscalYear: url.searchParams.get('fiscal_year') || undefined,
         period: url.searchParams.get('period') || undefined,
+        // has(), not || undefined: an explicitly empty plant means "clear it", not "unset".
+        plant: url.searchParams.has('plant') ? url.searchParams.get('plant') : undefined,
         refresh: url.searchParams.get('refresh') === '1',
       });
       return json(res, 200, snap);

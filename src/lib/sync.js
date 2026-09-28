@@ -19,9 +19,14 @@ export async function clearSnapshot() {
   await chrome.storage.session.remove(SNAPSHOT_KEY);
 }
 
-/** Runs a sync. `only` limits it to some sources (the rest are kept from the previous snapshot). */
-export async function runSync({ only } = {}) {
+/**
+ * Runs a sync. `only` limits it to some sources (the rest are kept from the previous snapshot).
+ * `plant` transiently overrides config.sap.plant for this sync only (e.g. a per-tab plant
+ * selector) - it is not persisted back to storage; `plant: ''` deliberately means "no plant".
+ */
+export async function runSync({ only, plant } = {}) {
   const config = await getConfig();
+  if (plant !== undefined) config.sap.plant = plant;
   const keys = only?.length ? only : SOURCE_KEYS;
   const today = new Date();
   let raw;
