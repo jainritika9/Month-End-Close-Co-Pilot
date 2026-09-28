@@ -53,10 +53,14 @@
     },
     "productionOrder": {
       "label": "Production orders",
-      "_comment": "Standard SAP API (API_PRODUCTION_ORDER_2_SRV), no custom ABAP - confirmed active and its field names verified against real $metadata. 'Done' = OrderIsTechnicallyCompleted or OrderIsClosed is 'X' - deriveOrderStatus in processing.js combines these two booleans into one synthetic status field ('_derivedStatus') before analyzeChecklist reads it via statusMeansDoneWhenNonBlank, the same mechanism the inspection-lot source uses. Real due date (MfgOrderScheduledEndDate), so dueDateIsAge is NOT set here - overdue means literally past due, unlike the checklist source. $filter uses Plant when sap.plant is set in Settings (production orders are scoped by plant, not just company code), falling back to CompanyCode otherwise - see sapClient.js's resolveQueryValue. CAVEAT, found by checking real data: this company code returns 0 rows from this API (checked with no filter, with CompanyCode, and with Plant) - consistent with this being a process-manufacturing (PP-PI) site that doesn't use discrete production orders; no Process Order API is registered in this system either (checked the service catalog). Wired up in case that changes or another company code/plant has data - see abap/README.md.",
+      "_comment": "Standard SAP API (API_PRODUCTION_ORDER_2_SRV), no custom ABAP - confirmed active and its field names verified against real $metadata. 'Done' = OrderIsTechnicallyCompleted or OrderIsClosed is 'X' - deriveOrderStatus in processing.js combines these two booleans into one synthetic status field ('_derivedStatus') before analyzeChecklist reads it via statusMeansDoneWhenNonBlank, the same mechanism the inspection-lot source uses. Real due date (MfgOrderScheduledEndDate), so dueDateIsAge is NOT set here - overdue means literally past due, unlike the checklist source. $filter narrows by both CompanyCode and Plant when sap.plant is set in Settings, falling back to CompanyCode alone otherwise (an empty Plant eq '' clause would wrongly exclude every row) - see sapClient.js's resolveQueryValue. CAVEAT, found by checking real data: this company code returns 0 rows from this API (checked with no filter, with CompanyCode, and with CompanyCode+Plant) - consistent with this being a process-manufacturing (PP-PI) site that doesn't use discrete production orders; no Process Order API is registered in this system either (checked the service catalog). Wired up in case that changes or another company code/plant has data - see abap/README.md.",
       "path": "/sap/opu/odata/sap/API_PRODUCTION_ORDER_2_SRV/A_ProductionOrder_2",
       "query": {
-        "$filter": { "when": "plant", "then": "Plant eq '{plant}'", "else": "CompanyCode eq '{companyCode}'" },
+        "$filter": {
+          "when": "plant",
+          "then": "CompanyCode eq '{companyCode}' and Plant eq '{plant}'",
+          "else": "CompanyCode eq '{companyCode}'"
+        },
         "$orderby": "MfgOrderCreationDate desc",
         "$top": "500"
       },
