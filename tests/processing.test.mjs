@@ -17,6 +17,7 @@ config.sap.companyCode = '1000';
 config.sap.fiscalYear = '';
 const today = new Date('2026-09-23T10:00:00Z');
 const day = (off) => `/Date(${today.getTime() + off * 86400000})/`;
+const recentCutoff = new Date(today.getTime() - 365 * 86400000).toISOString().slice(0, 19);
 
 test('parseSapDate handles OData v2, ISO and yyyymmdd', () => {
   assert.equal(parseSapDate('/Date(1758585600000)/').toISOString(), '2025-09-23T00:00:00.000Z');
@@ -322,16 +323,24 @@ test('buildUrl filters production orders by CompanyCode + Plant when set, else C
   assert.equal(withoutPlant.searchParams.get('$filter'), "CompanyCode eq '1000'");
 });
 
+test('buildUrl filters maintenance orders to a rolling recent window before sorting', () => {
+  // Sorting this API's full unfiltered history times out live (~49s); pre-filtering to the same
+  // field being sorted brings it down to ~8s - see abap/README.md.
+  const url = buildUrl(config, config.sources.maintenanceOrder, { companyCode: '1000', recentCutoff: '2025-09-23T10:00:00' });
+  assert.equal(url.searchParams.get('$filter'), "CompanyCode eq '1000' and MaintOrdBasicEndDate ge datetime'2025-09-23T10:00:00'");
+  assert.equal(url.searchParams.get('$orderby'), 'MaintOrdBasicEndDate desc');
+});
+
 test('config helpers', () => {
   assert.deepEqual(deepMerge({ a: { b: 1, c: 2 }, l: [1] }, { a: { c: 3 }, l: [2] }), { a: { b: 1, c: 3 }, l: [2] });
   assert.deepEqual(periodVars(config, today),
-    { fiscalYear: '2026', period: '009', companyCode: '1000', plant: '', grirAccount: '241101001' });
+    { fiscalYear: '2026', period: '009', companyCode: '1000', plant: '', grirAccount: '241101001', recentCutoff });
   const fixedFy = { ...config, sap: { ...config.sap, companyCode: '7827', fiscalYear: '2025', plant: '1000' } };
   assert.deepEqual(periodVars(fixedFy, today),
-    { fiscalYear: '2025', period: '009', companyCode: '7827', plant: '1000', grirAccount: '241101001' });
+    { fiscalYear: '2025', period: '009', companyCode: '7827', plant: '1000', grirAccount: '241101001', recentCutoff });
   const aprilFy = { ...config, sap: { ...config.sap, fiscalYearStartMonth: 4 } };
   assert.deepEqual(periodVars(aprilFy, today),
-    { fiscalYear: '2027', period: '006', companyCode: '1000', plant: '', grirAccount: '241101001' });
+    { fiscalYear: '2027', period: '006', companyCode: '1000', plant: '', grirAccount: '241101001', recentCutoff });
   const secret = structuredClone(config);
   secret.auth.basic.password = 'x';
   secret.auth.oauth2.clientSecret = 'y';

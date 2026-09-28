@@ -77,11 +77,11 @@
     },
     "maintenanceOrder": {
       "label": "Maintenance orders",
-      "_comment": "Standard SAP API (API_MAINTENANCEORDER), no custom ABAP - confirmed active with real, current data for this company code (checked live, ordered by creation date). 'Done' = SystemStatusText contains TECO (technically completed) or CLSD (closed) - this API has no boolean status flag, only a space-separated status-code text, so deriveOrderStatus checks for those tokens the same way it checks the production order's boolean flags, then feeds the same synthetic '_derivedStatus' field to analyzeChecklist. Real due date (MaintOrdBasicEndDate), so dueDateIsAge is NOT set here.",
+      "_comment": "Standard SAP API (API_MAINTENANCEORDER), no custom ABAP - confirmed active with real, current data for this company code. 'Done' = SystemStatusText contains TECO (technically completed) or CLSD (closed) - this API has no boolean status flag, only a space-separated status-code text, so deriveOrderStatus checks for those tokens the same way it checks the production order's boolean flags, then feeds the same synthetic '_derivedStatus' field to analyzeChecklist. Real due date (MaintOrdBasicEndDate), so dueDateIsAge is NOT set here. $filter includes a rolling 'last 365 days' cutoff (recentCutoff) on the same field it sorts by - found live that sorting this company's full, unfiltered order history times out (~49s) where sorting the same field pre-filtered to a year takes ~8s; this also means an order overdue for more than a year won't appear here - see abap/README.md.",
       "path": "/sap/opu/odata/sap/API_MAINTENANCEORDER/MaintenanceOrder",
       "query": {
-        "$filter": "CompanyCode eq '{companyCode}'",
-        "$orderby": "MaintOrderCreationDateTime desc",
+        "$filter": "CompanyCode eq '{companyCode}' and MaintOrdBasicEndDate ge datetime'{recentCutoff}'",
+        "$orderby": "MaintOrdBasicEndDate desc",
         "$top": "500"
       },
       "doneWhenTextContains": { "field": "SystemStatusText", "tokens": ["TECO", "CLSD"] },

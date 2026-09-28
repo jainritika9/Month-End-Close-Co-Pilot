@@ -82,5 +82,10 @@ export function periodVars(config, date = new Date()) {
     // The GR/IR clearing G/L account (see config.sap.grirAccount) - a standard line-item API has
     // no "is this a GR/IR posting" flag, only the account it's posted to.
     grirAccount: config.sap.grirAccount ?? '',
+    // An OData V2 datetime literal value (no quotes/prefix) for "365 days ago" - lets a source
+    // filter to a recent rolling window before sorting a large table, e.g. the maintenance order
+    // source's $orderby, which times out without this (sorting the full unfiltered history is much
+    // more expensive than sorting a year's worth - see abap/README.md).
+    recentCutoff: new Date(date.getTime() - 365 * 24 * 3600 * 1000).toISOString().slice(0, 19),
   };
 }
