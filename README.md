@@ -5,7 +5,7 @@ This is an implementation of [strategy.txt](strategy.txt). It is a Manifest V3 b
 - **Close checklist status**: 3 tabs — EAM/QM inspection lots (`API_INSPECTIONLOT_SRV`), production orders (`API_PRODUCTION_ORDER_2_SRV`) and maintenance orders (`API_MAINTENANCEORDER`) — completion % and overdue items for each, all standard SAP APIs with no custom ABAP, see [abap/README.md](abap/README.md#close-checklist-standard-apis-no-custom-abap)
 - **Unposted/parked documents**: amounts and how long they've been waiting
 - **Open GR/IR items**: GR vs IR difference and aging buckets, with items that need clearing flagged, read straight from SAP's standard `API_OPLACCTGDOCITEMCUBE_SRV` (universal journal line items) — no custom ABAP for this section either, see [abap/README.md](abap/README.md#open-grir-items-standard-api-no-custom-abap)
-- **Missing accruals**: planned vs posted amounts, with missing, variance and overdue items flagged
+- **Missing accruals**: planned vs posted amounts, with missing, variance and overdue items flagged, read from SAP's standard `API_MANUALACCRUALS` (Accrual Engine) — no custom ABAP, though this system currently has no data in that API to show, see [abap/README.md](abap/README.md#accruals-standard-api-no-custom-abap---but-no-data-to-verify-it-against)
 
 It also has an exceptions list, KPI tiles, charts, filters, a drill-down drawer that shows the raw SAP fields, per-section refresh, background sync, a toolbar badge and desktop notifications.
 

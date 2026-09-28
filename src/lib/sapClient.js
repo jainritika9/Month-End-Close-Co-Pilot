@@ -79,19 +79,23 @@ export function parseODataPage(body) {
 }
 
 /**
- * Left-joins `joinRows` onto `mainRows` by a shared key field (client-side, since not every
- * standard SAP API that a source needs data from exposes it pre-joined - e.g.
- * API_INSPECTIONLOT_SRV splits lot header (A_InspectionLot) and Usage Decision
- * (A_InspLotUsageDecision) into two separate, independently-fetched entity sets). A main row with
- * no match (e.g. a lot with no Usage Decision yet) is kept as-is - its joined fields are simply
- * absent, which `normalize()` already treats as blank. On a name collision, the main row wins.
+ * Left-joins `joinRows` onto `mainRows` by a shared key (client-side, since not every standard SAP
+ * API that a source needs data from exposes it pre-joined - e.g. API_INSPECTIONLOT_SRV splits lot
+ * header (A_InspectionLot) and Usage Decision (A_InspLotUsageDecision) into two separate,
+ * independently-fetched entity sets). `key` is a field name, or an array of field names for a
+ * composite key (e.g. the manual-accruals source, correlated by AccrualObject + AccrualSubobject
+ * across 4 entities - a single field isn't unique enough on its own). A main row with no match
+ * (e.g. a lot with no Usage Decision yet) is kept as-is - its joined fields are simply absent,
+ * which `normalize()` already treats as blank. On a name collision, the main row wins. If more than
+ * one join row shares a key, only the last one read is kept - a known simplification.
  */
 export function mergeJoinedRows(mainRows, joinRows, key) {
-  const byKey = new Map(joinRows.map((r) => [r[key], r]));
-  return mainRows.map((row) => ({ ...byKey.get(row[key]), ...row }));
+  const keyOf = Array.isArray(key) ? (r) => key.map((k) => r[k]).join('\u0000') : (r) => r[key];
+  const byKey = new Map(joinRows.map((r) => [keyOf(r), r]));
+  return mainRows.map((row) => ({ ...byKey.get(keyOf(row)), ...row }));
 }
 
-/** Fetches every page of one entity set (a source or a source's `join`). */
+/** Fetches every page of one entity set (a source or one of its joins). */
 async function fetchEntitySet(config, source, vars, authHeader, maxPages) {
   let url = buildUrl(config, source, vars);
   const all = [];
@@ -104,13 +108,18 @@ async function fetchEntitySet(config, source, vars, authHeader, maxPages) {
 }
 
 /**
- * Fetches every page of one configured source, and merges in its `join` entity set (if any) -
- * see `mergeJoinedRows`.
+ * Fetches every page of one configured source, and merges in its join entity sets (if any) - see
+ * `mergeJoinedRows`. `source.joins` is an array for more than one (e.g. the manual-accruals
+ * source, where description/amount/cost-center/period-amount each live in a separate entity);
+ * `source.join` (singular) is still supported for the common one-join case.
  */
 export async function fetchSource(config, source, vars, maxPages = 50) {
   const authHeader = await getAuthHeader(config);
-  const mainRows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
-  if (!source.join) return mainRows;
-  const joinRows = await fetchEntitySet(config, source.join, vars, authHeader, maxPages);
-  return mergeJoinedRows(mainRows, joinRows, source.join.key);
+  let rows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
+  const joins = source.joins ?? (source.join ? [source.join] : []);
+  for (const join of joins) {
+    const joinRows = await fetchEntitySet(config, join, vars, authHeader, maxPages);
+    rows = mergeJoinedRows(rows, joinRows, join.key);
+  }
+  return rows;
 }

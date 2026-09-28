@@ -209,12 +209,20 @@ test('aggregateGrirLineItems sums GR (credit) vs IR (debit) lines per PO item', 
   assert.equal(g2.InvoiceReceiptAmount, 0);
 });
 
+// A minimal, self-contained field mapping - independent of the live config's accruals source
+// shape (currently API_MANUALACCRUALS, joined across 4 entities), so this test keeps testing
+// analyzeAccruals's own logic rather than that source's specifics.
+const genericAccrualFields = {
+  id: 'AccrualObject', description: 'Description', costCenter: 'CostCenter',
+  expectedAmount: 'PlannedAmount', postedAmount: 'PostedAmount', currency: 'Currency', dueDate: 'DueDate',
+};
+
 test('accruals: missing, variance within/over tolerance, overdue', () => {
-  const src = config.sources.accruals;
+  const src = { fields: genericAccrualFields };
   const rows = [
-    { AccrualObject: 'm', PlannedAmount: '1000', PostedAmount: '0', PostingDueDate: day(-1) },
-    { AccrualObject: 'v', PlannedAmount: '1000', PostedAmount: '900', PostingDueDate: day(2) },
-    { AccrualObject: 'ok', PlannedAmount: '1000', PostedAmount: '970', PostingDueDate: day(-1) },
+    { AccrualObject: 'm', PlannedAmount: '1000', PostedAmount: '0', DueDate: day(-1) },
+    { AccrualObject: 'v', PlannedAmount: '1000', PostedAmount: '900', DueDate: day(2) },
+    { AccrualObject: 'ok', PlannedAmount: '1000', PostedAmount: '970', DueDate: day(-1) },
   ];
   const r = analyzeAccruals(rows, src, { accrualTolerancePct: 5 }, today);
   assert.deepEqual(r.items.map((a) => a.state), ['missing', 'variance', 'ok']);
@@ -304,6 +312,22 @@ test('mergeJoinedRows left-joins by key, e.g. inspection lots + their Usage Deci
   assert.deepEqual(merged[0], { InspectionLot: '1', Plant: '1000', InspectionLotUsageDecisionCode: 'A1' });
   assert.deepEqual(merged[1], { InspectionLot: '2', Plant: '1000' }, 'no match -> unchanged, not an error');
   assert.equal(mergeJoinedRows(lots, [], 'InspectionLot').length, 2, 'an empty join set still returns every main row');
+});
+
+test('mergeJoinedRows supports a composite key, e.g. accrual object + subobject', () => {
+  const headers = [
+    { AccrualObject: 'A1', AccrualSubobject: '01', AccrualObjectDescription: 'Bonus provision' },
+    { AccrualObject: 'A1', AccrualSubobject: '02', AccrualObjectDescription: 'Warranty reserve' },
+    { AccrualObject: 'A2', AccrualSubobject: '01', AccrualObjectDescription: 'No matching item' },
+  ];
+  const items = [
+    { AccrualObject: 'A1', AccrualSubobject: '01', TotalAccrAmountInTransCrcy: '5000' },
+    { AccrualObject: 'A1', AccrualSubobject: '02', TotalAccrAmountInTransCrcy: '2000' },
+  ];
+  const merged = mergeJoinedRows(headers, items, ['AccrualObject', 'AccrualSubobject']);
+  assert.equal(merged[0].TotalAccrAmountInTransCrcy, '5000');
+  assert.equal(merged[1].TotalAccrAmountInTransCrcy, '2000');
+  assert.equal(merged[2].TotalAccrAmountInTransCrcy, undefined, 'AccrualSubobject alone would collide with A1/01 - the pair must match');
 });
 
 test('buildUrl fills placeholders and escapes quotes', () => {

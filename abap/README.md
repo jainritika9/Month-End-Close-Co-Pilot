@@ -2,9 +2,9 @@
 
 These are the read-only OData services that the browser extension reads. They need S/4HANA 2020 or later (on-premise or RISE private cloud).
 
-**The close checklist and open GR/IR items need no custom ABAP at all.** The checklist is now 3 tabs, each its own standard SAP API, no custom ABAP for any of them: EAM/QM inspection lots (`API_INSPECTIONLOT_SRV`), production orders (`API_PRODUCTION_ORDER_2_SRV`) and maintenance orders (`API_MAINTENANCEORDER`) - see "Close checklist: standard APIs" below. GR/IR reads the standard `API_OPLACCTGDOCITEMCUBE_SRV` - see "Open GR/IR items: standard API" below. Only unposted documents and accruals still need the custom objects listed here.
+**Only unposted/parked documents still need custom ABAP.** Everything else reads a standard SAP API: the close checklist is 3 tabs, each its own standard API - EAM/QM inspection lots (`API_INSPECTIONLOT_SRV`), production orders (`API_PRODUCTION_ORDER_2_SRV`) and maintenance orders (`API_MAINTENANCEORDER`) - see "Close checklist: standard APIs" below. GR/IR reads `API_OPLACCTGDOCITEMCUBE_SRV` - see "Open GR/IR items" below. Accruals reads `API_MANUALACCRUALS` - see "Accruals" below (with a significant caveat: this system has no data in that API at all).
 
-The 2 exposed views are **classic DDIC-based CDS views with `@OData.publish: true`**, because that annotation doesn't work on view entities. Each exposed view generates its own OData V2 service, so there is no service definition or binding. The helper views are CDS view entities.
+The 1 exposed view is a **classic DDIC-based CDS view with `@OData.publish: true`**, because that annotation doesn't work on view entities. It generates its own OData V2 service, so there is no service definition or binding. The helper views are CDS view entities.
 
 > DDIC-based views are deprecated as of S/4HANA 2022. They still activate and run, but ADT shows a warning. If you later switch to a service definition and binding, convert the views back to `define view entity` and remove `sqlViewName`, `compareFilter`, `preserveKey` and `OData.publish`.
 
@@ -12,36 +12,25 @@ The 2 exposed views are **classic DDIC-based CDS views with `@OData.publish: tru
 
 | File | Object | Type | Purpose |
 |---|---|---|---|
-| `zmwc_r2r_accpln.tabl.txt` | `ZMWC_R2R_ACCPLN` | Table | Accrual plan: expected accruals per period |
 | `zi_r2r_parkeddocitem` | `ZI_R2R_ParkedDocItem` | View entity (helper) | Union of debit lines from `VBSEGS/K/D/A` |
 | `zi_r2r_parkeddocamount` | `ZI_R2R_ParkedDocAmount` | View entity (helper) | Total per parked document |
 | `zi_r2r_parkeddocument` | `ZI_R2R_ParkedDocument` | DDIC CDS + DCL | **Published** as `ZI_R2R_PARKEDDOCUMENT_CDS`. Parked FI documents (`BKPF-BSTAT` V/W) |
-| `zi_r2r_accrualposted` | `ZI_R2R_AccrualPosted` | View entity (helper) | Posted amounts per GL account, cost center, document type and period |
-| `zi_r2r_accrualcheck` | `ZI_R2R_AccrualCheck` | DDIC CDS + DCL | **Published** as `ZI_R2R_ACCRUALCHECK_CDS`. Planned vs posted accruals |
 
-The element names on the published views match the field mappings in `config/default-config.json`, so the extension needs no field changes.
+The element names on the published view match the field mappings in `config/default-config.json`, so the extension needs no field changes.
 
 ## Activation order (ADT)
 
 Create all objects in one package, e.g. a new `ZMWC_R2R_CLOSE`, on one transport. For each object, create it with the same name, paste the file's content and activate it. Go in this order:
 
-1. The table `ZMWC_R2R_ACCPLN`.
-2. The parked-document views: `ZI_R2R_ParkedDocItem`, then `ZI_R2R_ParkedDocAmount`, then `ZI_R2R_ParkedDocument`.
-3. The accrual views: `ZI_R2R_AccrualPosted`, then `ZI_R2R_AccrualCheck`.
-4. The 2 access controls (the `.dcls` files). Create each with the same name as its view.
-5. **Register the 2 generated services.** Activating a view with `@OData.publish: true` generates its service, but the service isn't reachable until it's registered. For each service:
+1. The parked-document views: `ZI_R2R_ParkedDocItem`, then `ZI_R2R_ParkedDocAmount`, then `ZI_R2R_ParkedDocument`.
+2. The access control (`zi_r2r_parkeddocument.dcls.asdcls`).
+3. **Register the generated service.** Activating a view with `@OData.publish: true` generates its service, but the service isn't reachable until it's registered:
    - Go to `/IWFND/MAINT_SERVICE` → **Add Service**.
-   - Enter System Alias `LOCAL` and the technical service name, then click **Get Services**.
+   - Enter System Alias `LOCAL` and the technical service name (`ZI_R2R_PARKEDDOCUMENT_CDS`), then click **Get Services**.
    - Click **Add Selected Services** and use your package and transport.
 
-   This creates each service's SICF node. In ADT, the marker next to `@OData.publish` shows whether a service is active.
-
-   | Service | Entity set |
-   |---|---|
-   | `ZI_R2R_PARKEDDOCUMENT_CDS` | `ZI_R2R_ParkedDocument` |
-   | `ZI_R2R_ACCRUALCHECK_CDS` | `ZI_R2R_AccrualCheck` |
-6. Also register the standard `API_INSPECTIONLOT_SRV` and `API_OPLACCTGDOCITEMCUBE_SRV` the same way (they're SAP-delivered, so only registration is needed, not creation) - see the checklist and GR/IR sections below.
-7. Optional: in SE54, generate table maintenance for `ZMWC_R2R_ACCPLN` so finance can maintain it in SM30.
+   This creates the service's SICF node. In ADT, the marker next to `@OData.publish` shows whether it's active.
+4. Also register the 5 standard APIs the same way (they're SAP-delivered, so only registration is needed, not creation) - `API_INSPECTIONLOT_SRV`, `API_PRODUCTION_ORDER_2_SRV`, `API_MAINTENANCEORDER`, `API_OPLACCTGDOCITEMCUBE_SRV`, `API_MANUALACCRUALS` - see their sections below.
 
 ## Close checklist: standard APIs, no custom ABAP
 
@@ -95,27 +84,35 @@ There's still no owner field, same limitation as before.
 
 Two API names that looked plausible were checked and rejected before landing on this one: `API_JOURNALENTRYITEM_SRV` isn't registered in this system (`/IWFND/MED/170`), and `API_JOURNALENTRYITEMBASIC_SRV` is registered but its entity has no posting date, document number, PO reference or clearing indicator - a controlling/cost-center reporting shape, not a GR/IR-capable one.
 
+## Accruals: standard API, no custom ABAP - but no data to verify it against
+
+`config/default-config.json`'s `sources.accruals` points at `API_MANUALACCRUALS`, SAP's standard Accrual Engine / Manual Accruals app - confirmed active, and its field names verified against real `$metadata`. This replaced 2 custom objects (`ZMWC_R2R_ACCPLN`, the manually-maintained accrual plan table, and the `ZI_R2R_AccrualPosted`/`ZI_R2R_AccrualCheck` views built on it) - see this file's git history if you need them back.
+
+**Every entity in this API returns 0 rows in this system, checked with no filter at all** across the header and all 3 joins below - not scoped to company code 7827, genuinely empty system-wide for this user, the same pattern found for production orders. This means the design below is verified for field *names* only, not for real data - unlike everything else in this file. It was implemented anyway, by explicit choice, to keep this source on a standard API rather than custom ABAP even though this system doesn't currently use the SAP application behind it (most likely `ZMWC_R2R_ACCPLN` existed precisely because it didn't).
+
+- **Needs 4 entities, not 1 or 2.** Unlike GR/IR (one entity) or the checklist (one entity + one join), an accrual object's description, target amount, cost center and period-by-period amount each live in a separate entity: `MnlAccrsAccrualSubobject` (header - `AccrualObjectDescription`), `MnlAccrsAccrSubobjItem` (`TotalAccrAmountInTransCrcy`, `TransactionCurrency`), `MnlAccrsAccrSubobjAssgmt` (`CostCenter`), `MnlAccrsAccrPerdcAmounts` (`AccrualAmtInTransCrcy`, `AccrualPeriodEndDate`). All 4 correlate by `(AccrualObject, AccrualSubobject)` - a **composite key**, since neither field alone is unique. `mergeJoinedRows` and `fetchSource` (`src/lib/sapClient.js`, `mcp/closeData.mjs`) were generalized from one optional `join` to a `joins` array, and `mergeJoinedRows`'s `key` parameter now accepts an array of field names for exactly this case.
+- **No field for "actually posted to GL".** This API models a proposal → review → approval workflow (`AccrualAmountIsReviewed`, `AccrualAmountIsApproved`, both real booleans), not a posted-vs-planned GL comparison. `fields.postedAmount` uses `AccrualAmtInTransCrcy` (the period's recorded/adjusted accrual amount) as the closest available proxy - it confirms a value was *set* for the period, not that a posting run actually happened. This is a modeling approximation that a real accrual object would be needed to validate.
+- **Known simplification**: if a subobject has more than one `MnlAccrsAccrPerdcAmounts` row (multiple periods, item types or ledgers) or more than one `MnlAccrsAccrSubobjItem` row, `mergeJoinedRows` keeps only the last one read for that key - silently, since there's no real data here to reveal whether this matters in practice.
+
 ## Verify these at activation
 
 I wrote these views without access to your system. Names are based on standard S/4HANA, but press **F2** on anything ADT underlines. These are the points most likely to need a change:
 
-- **`Ledger = '0L'`**: this assumes your leading ledger is `0L`. It's in `ZI_R2R_AccrualPosted`.
 - **`VBSEG*.BZKEY`**: this is the parked line number field. If the name differs, it only matters as a key and can be dropped.
-- **SQL view names** (`ZIR2RPARKDOC`, `ZIR2RACCRCHK`) must be unique in the system and at most 16 characters.
+- **SQL view name** (`ZIR2RPARKDOC`) must be unique in the system and at most 16 characters.
 - **Amounts stay as currency amounts (CURR) throughout** instead of being cast to decimals. This means OData applies the right number of decimals for currencies like JPY, which has 0 decimals.
 
 ## Authorizations (PFCG)
 
 A user who runs the dashboard needs:
 
-- **`S_SERVICE`**: start authorization for each service, including the 4 standard ones (`API_INSPECTIONLOT_SRV`, `API_PRODUCTION_ORDER_2_SRV`, `API_MAINTENANCEORDER`, `API_OPLACCTGDOCITEMCUBE_SRV`). In PFCG, go to Menu → Authorization Default → *SAP Gateway: Service Groups Metadata* and add all 6. Without it, calls return 403 and `SU53` shows `S_SERVICE`.
-- **`F_BKPF_BUK`**, activity `03`, for the company codes they should see. The 2 custom views' access controls filter by this, so users without it get 0 rows rather than an error - same check as FB03 and FBL3N. `API_INSPECTIONLOT_SRV` has its own standard QM authorization instead (e.g. `Q_QMEL`/plant-based authorization) - check with your QM team what your users already need for IQS1/IQS21, since this API enforces the same. `API_PRODUCTION_ORDER_2_SRV` and `API_MAINTENANCEORDER` similarly have their own standard PP/PM order-authorization objects, not `F_BKPF_BUK` - I haven't checked their exact names against this system (unlike everything else in this file, which has been checked live), so verify with your PP/PM team what your users need for CO03/IW33 before assuming a new user can see this data. `API_OPLACCTGDOCITEMCUBE_SRV` reads the same universal journal data as `F_BKPF_BUK`-protected FI documents; this session's user returned real data from all 3 of these without a separate PFCG change, but confirm with your Basis team before assuming that holds for every user.
+- **`S_SERVICE`**: start authorization for each service, including the 5 standard ones (`API_INSPECTIONLOT_SRV`, `API_PRODUCTION_ORDER_2_SRV`, `API_MAINTENANCEORDER`, `API_OPLACCTGDOCITEMCUBE_SRV`, `API_MANUALACCRUALS`). In PFCG, go to Menu → Authorization Default → *SAP Gateway: Service Groups Metadata* and add all 6. Without it, calls return 403 and `SU53` shows `S_SERVICE`.
+- **`F_BKPF_BUK`**, activity `03`, for the company codes they should see. The 1 remaining custom view's access control filters by this, so users without it get 0 rows rather than an error - same check as FB03 and FBL3N. `API_INSPECTIONLOT_SRV` has its own standard QM authorization instead (e.g. `Q_QMEL`/plant-based authorization) - check with your QM team what your users already need for IQS1/IQS21, since this API enforces the same. `API_PRODUCTION_ORDER_2_SRV` and `API_MAINTENANCEORDER` similarly have their own standard PP/PM order-authorization objects, not `F_BKPF_BUK` - I haven't checked their exact names against this system (unlike everything else in this file, which has been checked live), so verify with your PP/PM team what your users need for CO03/IW33 before assuming a new user can see this data. `API_OPLACCTGDOCITEMCUBE_SRV` reads the same universal journal data as `F_BKPF_BUK`-protected FI documents; this session's user returned real data from both of those without a separate PFCG change, but confirm with your Basis team before assuming that holds for every user. `API_MANUALACCRUALS`'s own authorization requirements are unverified here too, on top of returning no data at all for this session's user - check with your FI/controlling team once this system actually has accrual objects to test with.
 
 ## Test URLs (`/IWFND/GW_CLIENT` or a browser)
 
 ```
 /sap/opu/odata/sap/ZI_R2R_PARKEDDOCUMENT_CDS/ZI_R2R_ParkedDocument?$filter=CompanyCode eq '1000' and FiscalYear eq '2026' and FiscalPeriod eq '009'&$format=json
-/sap/opu/odata/sap/ZI_R2R_ACCRUALCHECK_CDS/ZI_R2R_AccrualCheck?$format=json
 /sap/opu/odata/sap/API_INSPECTIONLOT_SRV/$metadata
 /sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspectionLot?$top=5&$format=json
 /sap/opu/odata/sap/API_INSPECTIONLOT_SRV/A_InspLotUsageDecision?$top=5&$format=json
@@ -125,9 +122,9 @@ A user who runs the dashboard needs:
 /sap/opu/odata/sap/API_MAINTENANCEORDER/MaintenanceOrder?$filter=CompanyCode eq '7827'&$top=5&$format=json
 /sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/$metadata
 /sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/A_OperationalAcctgDocItemCube?$filter=CompanyCode eq '7827' and GLAccount eq '241101001' and IsCleared eq false&$top=5&$format=json
+/sap/opu/odata/sap/API_MANUALACCRUALS/$metadata
+/sap/opu/odata/sap/API_MANUALACCRUALS/MnlAccrsAccrualSubobject?$filter=CompanyCode eq '7827'&$top=5&$format=json
 ```
-
-`ZI_R2R_AccrualCheck` stays empty until rows exist in `ZMWC_R2R_ACCPLN`.
 
 ## Unposted/parked documents: checked for a standard API, staying on custom ABAP for now
 
@@ -138,8 +135,8 @@ One genuinely well-documented SAP standard API is relevant to a gap this source 
 ## Known limits and design decisions
 
 - **Parked documents cover FI only.** Supplier invoices parked in MM (MIR7) are stored in `RBKP/RSEG`, not `BKPF/VBSEG*`, so they don't appear yet - see the section above for a possible standard-API candidate.
-- **Direct table access.** The parked-document views read `BKPF`, `VBSEG*` and `T030` directly, because I don't know of a released view that covers parked line amounts or account determination. That's fine on-premise and on RISE, but not under ABAP Cloud (Tier 1). Accruals use the released `I_JournalEntryItem`; GR/IR no longer touches custom ABAP at all (see the GR/IR section above).
+- **Direct table access.** The parked-document views read `BKPF`, `VBSEG*` and `T030` directly, because I don't know of a released view that covers parked line amounts or account determination. That's fine on-premise and on RISE, but not under ABAP Cloud (Tier 1). GR/IR and accruals no longer touch custom ABAP at all (see their sections above).
 - **GR/IR amounts are signed as posted.** GR is a credit (negative), and the extension flips it (`"signedAmounts": true`). Items that net to zero but are still uncleared (waiting for F.13) are returned by the API (since each side is a separate open line until cleared), and `analyzeGrir` hides the ones that net to zero after `aggregateGrirLineItems` sums them per PO item.
-- **How accruals are matched.** An accrual counts as posted when there are postings on the same expense GL account, cost center and document type in the period. Use a dedicated accrual document type, so ordinary invoices on the same account don't count as the accrual.
+- **Accruals has no real data to validate against in this system.** See the Accruals section above - the field mapping and 4-way join are best-effort against real `$metadata` only. If your system does use the Accrual Engine, double-check the join keys and the `postedAmount` proxy against an actual accrual object before relying on this tab.
 - **The close checklist is EAM inspection-lot status, not a generic finance task list.** Each row is one QM inspection lot; "closed" means a Usage Decision exists, whichever way it went - there's no separate "rejected/failed" state (see the checklist section above). There's no owner field either.
 - **If you'd rather track a generic finance checklist** (post accruals, run FX valuation, lock the period, ...) instead of or alongside this EAM one, that's the manually maintained approach from before, built on a Z table and a custom CDS view - see this file's git history (before the switch to `API_INSPECTIONLOT_SRV`) for `ZMWC_R2R_CLTASK` and `ZI_R2R_CloseTask`.

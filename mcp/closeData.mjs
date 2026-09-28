@@ -107,12 +107,15 @@ async function fetchEntitySet(config, source, vars, authHeader, maxPages = 50) {
   return all;
 }
 
-/** Fetches a source and merges in its `join` entity set, if configured - see sapClient.js. */
+/** Fetches a source and merges in its join entity set(s), if configured - see sapClient.js. */
 async function fetchSource(config, source, vars, authHeader, maxPages = 50) {
-  const mainRows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
-  if (!source.join) return mainRows;
-  const joinRows = await fetchEntitySet(config, source.join, vars, authHeader, maxPages);
-  return mergeJoinedRows(mainRows, joinRows, source.join.key);
+  let rows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
+  const joins = source.joins ?? (source.join ? [source.join] : []);
+  for (const join of joins) {
+    const joinRows = await fetchEntitySet(config, join, vars, authHeader, maxPages);
+    rows = mergeJoinedRows(rows, joinRows, join.key);
+  }
+  return rows;
 }
 
 let cache = null;
