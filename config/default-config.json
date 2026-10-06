@@ -1,6 +1,6 @@
 {
   "_comment": "Default configuration. Everything here can be overridden from the extension's Options page (or by importing a JSON file with the same shape). Never put passwords or secrets in this file.",
-  "demoMode": true,
+  "demoMode": false,
   "sap": {
     "baseUrl": "http://vhc2jq4rci.rise.ccbji.co.jp:8000/sap/bc/ui2/flp",
     "client": "100",
