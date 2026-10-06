@@ -1,7 +1,7 @@
 _schema-version: "3.2"
 ID: closecopilot
 version: 1.0.0
-description: Month-end close co-pilot dashboard, served from BTP and launched from SAP Build Work Zone
+description: Month End Close Co-Pilot dashboard, served from BTP and launched from a Fiori launchpad tile
 
 modules:
   # The dashboard itself: built by tools/build-btp.mjs into btp/dist/ and uploaded to the HTML5 app repository.

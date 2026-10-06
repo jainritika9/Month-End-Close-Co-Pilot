@@ -26,6 +26,9 @@ test('BTP bundle: page uses the BTP entry script and ships no extension-only cod
     assert.match(html, /<base href="\/src\/dashboard\/" \/>/);
     assert.match(html, /<script type="module" src="\/btp\/app\.js"><\/script>/);
     assert.doesNotMatch(html, /src="dashboard\.js"/);
+    assert.match(html, /<title>Month End Close Co-Pilot<\/title>/);
+    assert.match(html, /<h1>Month End Close Co-Pilot<\/h1>/);
+    assert.doesNotMatch(html, /Month-End Close Co-Pilot/);
 
     const config = JSON.parse(await readFile(path.join(out, 'config', 'default-config.json'), 'utf8'));
     assert.equal(config.sap.baseUrl, '', 'the SAP host name is not shipped in the page bundle');

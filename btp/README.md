@@ -25,23 +25,36 @@ tools/build-btp.mjs         builds the static site into btp/dist/ (run by the MT
 
 ## 2. Build the archive
 
-On a machine with Node 20+ and GNU `make` (mbt uses `make`, which isn't on a default Windows PATH; use Linux, macOS, WSL or a CI runner):
+The build needs Node 20+ and GNU `make`. `mbt` calls `make`, which isn't on a default Windows PATH, so on Windows run it inside WSL (Ubuntu):
 
 ```
-cd btp
+# inside WSL, once
+sudo apt update && sudo apt install -y make nodejs npm
+# then, from the repo (WSL can see it under /mnt/c/Users/...)
+cd /mnt/c/Users/RitikaJain/projects/Agent/btp
 npx mbt@1.2.49 build        # writes mta_archives/closecopilot_1.0.0.mtar
 ```
 
-The MTA build runs `node ../tools/build-btp.mjs`, which writes `btp/dist/`. Git ignores both output folders.
+Use Node 20 or later. If apt's `nodejs` is older, install it from NodeSource or nvm. The MTA build runs `node ../tools/build-btp.mjs`, which writes `btp/dist/`. Git ignores both output folders.
 
 ## 3. Deploy
+
+Install the Cloud Foundry CLI and its MTA plugin once (`cf deploy` needs the `multiapps` plugin):
+
+```
+cf install-plugin multiapps
+```
+
+Then deploy from the same folder:
 
 ```
 cf login -a <cf API endpoint> -o <org> -s <space>
 cf deploy mta_archives/closecopilot_1.0.0.mtar
 ```
 
-This creates the approuter app, the HTML5 app repository, the XSUAA instance and the Destination instance.
+Answer `y` if `cf deploy` asks to confirm the plan. The deploy creates the approuter app `closecopilot-approuter`, the HTML5 app repository, the XSUAA instance and the Destination instance. Get the approuter's URL with `cf app closecopilot-approuter`; the tile in section 6 needs it.
+
+Deploying the app does not create the `sap-rise` destination. Create it in section 4 before testing.
 
 ## 4. Create the SAP destination `sap-rise`
 
@@ -75,14 +88,14 @@ The tile opens the approuter URL in a new browser tab.
 0. Get the URL after deployment: `cf app closecopilot-approuter`, then use the route, `https://<route>/`. It is not the BTP HTML5 app URL.
 1. In the SAP system (client 100), open `/UI2/FLPD_CUST` (Launchpad Designer). Save changes into a customizing transport request.
 2. **Catalog:** create a catalog, e.g. ID `ZCLOSECOPILOT_CAT`, title "Close Co-Pilot".
-3. **Tile:** in that catalog, add an **App Launcher - Static** tile with title "Month-End Close Co-Pilot" and a subtitle and icon of your choice. Under navigation, use semantic object navigation with semantic object `ZCloseCopilot` and action `display`.
+3. **Tile:** in that catalog, add an **App Launcher - Static** tile with title "Month End Close Co-Pilot" and a subtitle and icon of your choice. Under navigation, use semantic object navigation with semantic object `ZCloseCopilot` and action `display`.
 4. **Target mapping:** in the catalog's Target Mappings, create one with the same semantic object and action (`ZCloseCopilot` / `display`). Application type `URL`, URL = the approuter URL from step 0, open in a new window. A URL target doesn't need the System Alias; set it only if your release insists on the field, then use `LOCAL`.
 5. **Role:** Basis assigns the catalog to a PFCG role (e.g. `Z_FIORI_CLOSECOPILOT`), generates the profile and assigns the role to the test users. Add the tile to a group and assign that group to the same role if you want it on the home page.
 
 ### 6b. SAP Build Work Zone
 
 1. Confirm the deployed app appears in **HTML5 Applications** as `closecopilot-ui`.
-2. In the launchpad's content management, add that application and create a tile: title "Month-End Close Co-Pilot", target = this application.
+2. In the launchpad's content management, add that application and create a tile: title "Month End Close Co-Pilot", target = this application.
 3. Put the tile in a group and attach that group to the **Close Co-Pilot Viewer** role collection, so the tile and the app are granted to the same users.
 
 ## 7. Check it works

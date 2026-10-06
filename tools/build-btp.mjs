@@ -17,6 +17,11 @@ const HEAD_TAG = '<head>';
 // The extension's entry script (uses chrome.*) is swapped for the BTP entry script.
 const EXTENSION_SCRIPT = '<script type="module" src="dashboard.js"></script>';
 const BTP_SCRIPT = '<script type="module" src="/btp/app.js"></script>';
+// The BTP app's display name. The Chrome extension and localhost dashboard keep the shared name.
+const DISPLAY_NAME_REPLACEMENTS = [
+  ['<title>Close Co-Pilot</title>', '<title>Month End Close Co-Pilot</title>'],
+  ['<h1>Month-End Close Co-Pilot</h1>', '<h1>Month End Close Co-Pilot</h1>'],
+];
 
 export async function buildBundle(out = DEFAULT_OUT) {
   await rm(out, { recursive: true, force: true });
@@ -42,9 +47,13 @@ export async function buildBundle(out = DEFAULT_OUT) {
   const html = await readFile(path.join(ROOT, 'src', 'dashboard', 'dashboard.html'), 'utf8');
   if (!html.includes(EXTENSION_SCRIPT)) throw new Error('dashboard.html changed: update tools/build-btp.mjs');
   // Same base-tag trick as web/server.mjs, so the stylesheet and icon paths keep working.
-  const page = html
+  let page = html
     .replace(HEAD_TAG, `${HEAD_TAG}\n  <base href="/src/dashboard/" />`)
     .replace(EXTENSION_SCRIPT, BTP_SCRIPT);
+  for (const [from, to] of DISPLAY_NAME_REPLACEMENTS) {
+    if (!page.includes(from)) throw new Error(`dashboard.html changed: "${from}" not found`);
+    page = page.replace(from, to);
+  }
   await writeFile(path.join(out, 'index.html'), page);
   return out;
 }
