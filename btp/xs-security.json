@@ -1,0 +1,18 @@
+{
+  "xsappname": "closecopilot-ui",
+  "tenant-mode": "dedicated",
+  "description": "Month-end close co-pilot: who may open the dashboard. SAP authorizations still decide what each user can read.",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Display",
+      "description": "Open the month-end close dashboard"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "CloseCopilotViewer",
+      "description": "Read-only access to the month-end close dashboard",
+      "scope-references": ["$XSAPPNAME.Display"]
+    }
+  ]
+}

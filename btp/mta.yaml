@@ -1,0 +1,70 @@
+_schema-version: "3.2"
+ID: closecopilot
+version: 1.0.0
+description: Month-end close co-pilot dashboard, served from BTP and launched from SAP Build Work Zone
+
+modules:
+  # The dashboard itself: built by tools/build-btp.mjs into btp/dist/ and uploaded to the HTML5 app repository.
+  - name: closecopilot-ui
+    type: html5
+    path: .
+    build-parameters:
+      builder: custom
+      commands:
+        - node ../tools/build-btp.mjs
+      supported-platforms: []
+      build-result: dist
+
+  # Pushes the built dashboard into the HTML5 app repository host.
+  - name: closecopilot-ui-deployer
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: closecopilot-html5-host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: resources
+      requires:
+        - artifacts:
+            - closecopilot-ui.zip
+          name: closecopilot-ui
+          target-path: resources/
+
+  # Signs users in (XSUAA) and routes /sap/* to SAP through the "sap-rise" destination (see btp/README.md).
+  - name: closecopilot-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+    requires:
+      - name: closecopilot-html5-runtime
+      - name: closecopilot-xsuaa
+      - name: closecopilot-destination
+
+resources:
+  - name: closecopilot-html5-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+
+  - name: closecopilot-html5-runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-runtime
+
+  - name: closecopilot-xsuaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+
+  - name: closecopilot-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite

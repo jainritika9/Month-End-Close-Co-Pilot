@@ -1,0 +1,15 @@
+{
+  "name": "closecopilot-approuter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Approuter for the month-end close co-pilot: signs users in and routes /sap/* to the SAP destination.",
+  "scripts": {
+    "start": "node node_modules/@sap/approuter/approuter.js"
+  },
+  "dependencies": {
+    "@sap/approuter": "23.3.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

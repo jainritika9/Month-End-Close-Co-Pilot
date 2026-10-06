@@ -3,3 +3,5 @@ node_modules/
 Thumbs.db
 *.log
 .env
+btp/dist/
+btp/mta_archives/
