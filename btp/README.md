@@ -66,13 +66,24 @@ In the BTP cockpit: **Security → Role Collections → New**, name it `Close Co
 
 ## 6. Add the tile to the launchpad
 
-The steps depend on the launchpad edition, so follow SAP's guide for adding a custom HTML5 application to SAP Build Work Zone. Summary:
+Two users must be able to reach the app: the SAP user needs the tile (launchpad role), and the BTP user needs the **Close Co-Pilot Viewer** role collection (section 5). Use 6a if the launchpad is the ABAP Fiori launchpad, which is the case when the system's launchpad path is `/sap/bc/ui2/flp` (as in `config/default-config.json`). Use 6b only if the launchpad is SAP Build Work Zone.
+
+### 6a. ABAP Fiori launchpad: URL tile
+
+The tile opens the approuter URL in a new browser tab.
+
+0. Get the URL after deployment: `cf app closecopilot-approuter`, then use the route, `https://<route>/`. It is not the BTP HTML5 app URL.
+1. In the SAP system (client 100), open `/UI2/FLPD_CUST` (Launchpad Designer). Save changes into a customizing transport request.
+2. **Catalog:** create a catalog, e.g. ID `ZCLOSECOPILOT_CAT`, title "Close Co-Pilot".
+3. **Tile:** in that catalog, add an **App Launcher - Static** tile with title "Month-End Close Co-Pilot" and a subtitle and icon of your choice. Under navigation, use semantic object navigation with semantic object `ZCloseCopilot` and action `display`.
+4. **Target mapping:** in the catalog's Target Mappings, create one with the same semantic object and action (`ZCloseCopilot` / `display`). Application type `URL`, URL = the approuter URL from step 0, open in a new window. A URL target doesn't need the System Alias; set it only if your release insists on the field, then use `LOCAL`.
+5. **Role:** Basis assigns the catalog to a PFCG role (e.g. `Z_FIORI_CLOSECOPILOT`), generates the profile and assigns the role to the test users. Add the tile to a group and assign that group to the same role if you want it on the home page.
+
+### 6b. SAP Build Work Zone
 
 1. Confirm the deployed app appears in **HTML5 Applications** as `closecopilot-ui`.
 2. In the launchpad's content management, add that application and create a tile: title "Month-End Close Co-Pilot", target = this application.
 3. Put the tile in a group and attach that group to the **Close Co-Pilot Viewer** role collection, so the tile and the app are granted to the same users.
-
-If the company launchpad is the on-premise ABAP Fiori launchpad instead, add a URL-type target mapping that points at the approuter's URL, and assign it to a PFCG role.
 
 ## 7. Check it works
 
