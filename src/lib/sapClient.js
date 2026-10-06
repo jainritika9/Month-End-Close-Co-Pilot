@@ -1,15 +1,5 @@
-// Thin OData (v2 and v4) client. Extension pages with host permission for the SAP origin are
-// exempt from CORS, so a proxy is only needed if your network setup requires one.
-
-import { getAuthHeader, logout, AuthError } from './auth.js';
-
-export class SapError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.name = 'SapError';
-    this.status = status;
-  }
-}
+// OData (v2 and v4) URL building, page parsing and joins. Pure functions: the callers fetch the
+// pages (the MCP server, the localhost dashboard and the BTP app each have their own fetch and auth).
 
 /** Replaces {name} placeholders; values are escaped for OData string literals. */
 export function fillPlaceholders(value, vars) {
@@ -37,38 +27,6 @@ export function buildUrl(config, source, vars) {
   return url;
 }
 
-async function fetchJson(url, authHeader, timeoutMs) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      headers: { Authorization: authHeader, Accept: 'application/json' },
-      credentials: 'omit',
-      signal: ctrl.signal,
-    });
-    if (res.status === 401) {
-      await logout();
-      throw new AuthError('SAP session is no longer valid, please sign in again');
-    }
-    if (!res.ok) {
-      let detail = '';
-      try {
-        const body = await res.json();
-        detail = body?.error?.message?.value ?? body?.error?.message ?? '';
-      } catch {
-        // Non-JSON error body; status code is enough.
-      }
-      throw new SapError(`SAP returned ${res.status}${detail ? `: ${detail}` : ''}`, res.status);
-    }
-    return await res.json();
-  } catch (e) {
-    if (e.name === 'AbortError') throw new SapError(`Request timed out after ${timeoutMs / 1000}s`);
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /** Extracts rows and the next-page link from an OData v2 or v4 payload. */
 export function parseODataPage(body) {
   if (body?.d) {
@@ -93,33 +51,4 @@ export function mergeJoinedRows(mainRows, joinRows, key) {
   const keyOf = Array.isArray(key) ? (r) => key.map((k) => r[k]).join('\u0000') : (r) => r[key];
   const byKey = new Map(joinRows.map((r) => [keyOf(r), r]));
   return mainRows.map((row) => ({ ...byKey.get(keyOf(row)), ...row }));
-}
-
-/** Fetches every page of one entity set (a source or one of its joins). */
-async function fetchEntitySet(config, source, vars, authHeader, maxPages) {
-  let url = buildUrl(config, source, vars);
-  const all = [];
-  for (let page = 0; url && page < maxPages; page++) {
-    const { rows, next } = parseODataPage(await fetchJson(url, authHeader, config.sap.requestTimeoutMs));
-    all.push(...rows);
-    url = next ? new URL(next, url) : null;
-  }
-  return all;
-}
-
-/**
- * Fetches every page of one configured source, and merges in its join entity sets (if any) - see
- * `mergeJoinedRows`. `source.joins` is an array for more than one (e.g. the manual-accruals
- * source, where description/amount/cost-center/period-amount each live in a separate entity);
- * `source.join` (singular) is still supported for the common one-join case.
- */
-export async function fetchSource(config, source, vars, maxPages = 50) {
-  const authHeader = await getAuthHeader(config);
-  let rows = await fetchEntitySet(config, source, vars, authHeader, maxPages);
-  const joins = source.joins ?? (source.join ? [source.join] : []);
-  for (const join of joins) {
-    const joinRows = await fetchEntitySet(config, join, vars, authHeader, maxPages);
-    rows = mergeJoinedRows(rows, joinRows, join.key);
-  }
-  return rows;
 }

@@ -1,14 +1,5 @@
-// Loads the bundled default config and merges user overrides from chrome.storage.local.
-// Only non-secret settings live here; tokens/credentials live in auth.js (session storage).
-
-const STORAGE_KEY = 'copilotConfig';
-
-let defaultsPromise;
-
-export function loadDefaults() {
-  defaultsPromise ??= fetch(chrome.runtime.getURL('config/default-config.json')).then((r) => r.json());
-  return defaultsPromise;
-}
+// Config helpers shared by the MCP server, the localhost dashboard and the BTP app. Settings come from
+// config/default-config.json (or an override file); no credentials are stored here.
 
 export function deepMerge(base, override) {
   if (override === undefined || override === null) return base;
@@ -16,49 +7,6 @@ export function deepMerge(base, override) {
   const out = { ...base };
   for (const [k, v] of Object.entries(override)) out[k] = deepMerge(base[k], v);
   return out;
-}
-
-export async function getConfig() {
-  const defaults = await loadDefaults();
-  const { [STORAGE_KEY]: overrides } = await chrome.storage.local.get(STORAGE_KEY);
-  return deepMerge(defaults, overrides ?? {});
-}
-
-/** Removes anything secret-looking so it can never be persisted. */
-export function stripSecrets(config) {
-  const clean = JSON.parse(JSON.stringify(config));
-  delete clean._comment;
-  if (clean.auth?.oauth2) delete clean.auth.oauth2.clientSecret;
-  if (clean.auth?.basic) {
-    delete clean.auth.basic.user;
-    delete clean.auth.basic.password;
-  }
-  return clean;
-}
-
-export async function saveConfig(config) {
-  await chrome.storage.local.set({ [STORAGE_KEY]: stripSecrets(config) });
-}
-
-export async function resetConfig() {
-  await chrome.storage.local.remove(STORAGE_KEY);
-}
-
-/**
- * Host-permission patterns the extension needs for the configured SAP endpoints. Ports are left
- * out: match patterns cannot carry them, and a portless pattern covers every port (8000, 44300…).
- */
-export function requiredOrigins(config) {
-  const urls = [config.sap.baseUrl, config.sap.proxyUrl];
-  if (config.auth.method === 'oauth2') urls.push(config.auth.oauth2.tokenUrl);
-  return [
-    ...new Set(
-      urls.filter(Boolean).map((u) => {
-        const { protocol, hostname } = new URL(u);
-        return `${protocol}//${hostname}/*`;
-      }),
-    ),
-  ];
 }
 
 /**

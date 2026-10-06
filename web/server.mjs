@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Local web dashboard: serves the Chrome extension's dashboard UI as a normal web page on
-// http://localhost, with SAP data fetched server-side (no CORS, no extension needed).
+// Local web dashboard: serves the shared dashboard UI (src/dashboard) as a normal web page on
+// http://localhost, with SAP data fetched server-side (no CORS, no browser extension needed).
 //
 //   node web/server.mjs [--port 8787] [--open]
 //
@@ -54,11 +54,11 @@ async function state() {
   };
 }
 
-/** The extension's dashboard.html, re-pointed at the web app script. */
+/** The shared dashboard.html, with the base path and the web app script added. */
 async function indexHtml() {
   let html = await readFile(path.join(ROOT, 'src/dashboard/dashboard.html'), 'utf8');
   html = html.replace('<head>', '<head>\n  <base href="/src/dashboard/" />');
-  html = html.replace('<script type="module" src="dashboard.js"></script>', '<script type="module" src="/web/app.js"></script>');
+  html = html.replace('</body>', '  <script type="module" src="/web/app.js"></script>\n</body>');
   return html;
 }
 

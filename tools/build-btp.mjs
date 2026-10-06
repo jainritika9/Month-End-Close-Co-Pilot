@@ -14,10 +14,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DEFAULT_OUT = path.join(ROOT, 'btp', 'dist');
 
 const HEAD_TAG = '<head>';
-// The extension's entry script (uses chrome.*) is swapped for the BTP entry script.
-const EXTENSION_SCRIPT = '<script type="module" src="dashboard.js"></script>';
+const BODY_END = '</body>';
 const BTP_SCRIPT = '<script type="module" src="/btp/app.js"></script>';
-// The BTP app's display name. The Chrome extension and localhost dashboard keep the shared name.
+// The BTP app's display name. The localhost dashboard keeps the shared name.
 const DISPLAY_NAME_REPLACEMENTS = [
   ['<title>Close Co-Pilot</title>', '<title>Month End Close Co-Pilot</title>'],
   ['<h1>Month-End Close Co-Pilot</h1>', '<h1>Month End Close Co-Pilot</h1>'],
@@ -28,10 +27,7 @@ export async function buildBundle(out = DEFAULT_OUT) {
   await mkdir(out, { recursive: true });
 
   await cp(path.join(ROOT, 'src', 'lib'), path.join(out, 'src', 'lib'), { recursive: true });
-  await cp(path.join(ROOT, 'src', 'dashboard'), path.join(out, 'src', 'dashboard'), {
-    recursive: true,
-    filter: (p) => path.basename(p) !== 'dashboard.js',
-  });
+  await cp(path.join(ROOT, 'src', 'dashboard'), path.join(out, 'src', 'dashboard'), { recursive: true });
   await cp(path.join(ROOT, 'icons'), path.join(out, 'icons'), { recursive: true });
   await mkdir(path.join(out, 'btp'), { recursive: true });
   await cp(path.join(ROOT, 'btp', 'app.js'), path.join(out, 'btp', 'app.js'));
@@ -45,11 +41,11 @@ export async function buildBundle(out = DEFAULT_OUT) {
   await writeFile(path.join(out, 'config', 'default-config.json'), `${JSON.stringify(config, null, 2)}\n`);
 
   const html = await readFile(path.join(ROOT, 'src', 'dashboard', 'dashboard.html'), 'utf8');
-  if (!html.includes(EXTENSION_SCRIPT)) throw new Error('dashboard.html changed: update tools/build-btp.mjs');
+  if (!html.includes(BODY_END)) throw new Error('dashboard.html changed: update tools/build-btp.mjs');
   // Same base-tag trick as web/server.mjs, so the stylesheet and icon paths keep working.
   let page = html
     .replace(HEAD_TAG, `${HEAD_TAG}\n  <base href="/src/dashboard/" />`)
-    .replace(EXTENSION_SCRIPT, BTP_SCRIPT);
+    .replace(BODY_END, `  ${BTP_SCRIPT}\n${BODY_END}`);
   for (const [from, to] of DISPLAY_NAME_REPLACEMENTS) {
     if (!page.includes(from)) throw new Error(`dashboard.html changed: "${from}" not found`);
     page = page.replace(from, to);

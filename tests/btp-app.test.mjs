@@ -18,7 +18,7 @@ const SAP_HOST = 'http://vhc2jq4rci.rise.ccbji.co.jp:8000';
 
 const okJson = (body) => ({ ok: true, status: 200, json: async () => body });
 
-test('BTP bundle: page uses the BTP entry script and ships no extension-only code', async () => {
+test('BTP bundle: page uses the BTP entry script and ships no leftover entry point', async () => {
   const out = await mkdtemp(path.join(tmpdir(), 'btp-bundle-'));
   try {
     await buildBundle(out);
@@ -33,7 +33,7 @@ test('BTP bundle: page uses the BTP entry script and ships no extension-only cod
     const config = JSON.parse(await readFile(path.join(out, 'config', 'default-config.json'), 'utf8'));
     assert.equal(config.sap.baseUrl, '', 'the SAP host name is not shipped in the page bundle');
 
-    await assert.rejects(readFile(path.join(out, 'src', 'dashboard', 'dashboard.js')), 'extension entry is left out');
+    await assert.rejects(readFile(path.join(out, 'src', 'dashboard', 'dashboard.js')), 'the old entry point is not shipped');
     for (const f of ['btp/app.js', 'btp/browser-snapshot.js', 'src/lib/sapClient.js', 'src/dashboard/render.js', 'icons/icon32.png']) {
       await readFile(path.join(out, f));
     }

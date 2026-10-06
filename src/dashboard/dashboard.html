@@ -19,7 +19,6 @@
       <span id="sessionInfo" class="muted"></span>
       <button id="refreshAll" class="btn primary" type="button">Refresh all</button>
       <button id="signOut" class="btn" type="button" hidden>Sign out</button>
-      <button id="openSettings" class="btn" type="button">Settings</button>
     </div>
   </header>
 
@@ -30,10 +29,6 @@
     <section id="login" class="card login" hidden>
       <h2>Sign in to SAP</h2>
       <p class="muted" id="loginTarget"></p>
-      <div id="loginOAuth" hidden>
-        <p>You'll be redirected to your SAP system's sign-in page. The access token is kept only in browser memory for this session.</p>
-        <button id="oauthBtn" class="btn primary" type="button">Sign in with SAP</button>
-      </div>
       <form id="loginBasic" hidden autocomplete="off">
         <p>Your password is not stored. It is only used to create an in-memory session that ends when the browser closes.</p>
         <label>User <input id="basicUser" required autocomplete="username" /></label>
@@ -109,6 +104,5 @@
     <div id="drawerBody"></div>
   </aside>
 
-  <script type="module" src="dashboard.js"></script>
 </body>
 </html>

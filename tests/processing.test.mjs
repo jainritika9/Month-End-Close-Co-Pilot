@@ -7,7 +7,7 @@ import {
   analyzeGrir, aggregateGrirLineItems, analyzeAccruals, buildSnapshot, buildAlerts, combineChecklistSummaries,
 } from '../src/lib/processing.js';
 import { parseODataPage, buildUrl, fillPlaceholders, mergeJoinedRows } from '../src/lib/sapClient.js';
-import { deepMerge, periodVars, stripSecrets, requiredOrigins } from '../src/lib/config.js';
+import { deepMerge, periodVars } from '../src/lib/config.js';
 import { mockRaw } from '../src/lib/mockData.js';
 
 const config = JSON.parse(readFileSync(new URL('../config/default-config.json', import.meta.url)));
@@ -365,13 +365,4 @@ test('config helpers', () => {
   const aprilFy = { ...config, sap: { ...config.sap, fiscalYearStartMonth: 4 } };
   assert.deepEqual(periodVars(aprilFy, today),
     { fiscalYear: '2027', period: '006', companyCode: '1000', plant: '', grirAccount: '241101001', recentCutoff });
-  const secret = structuredClone(config);
-  secret.auth.basic.password = 'x';
-  secret.auth.oauth2.clientSecret = 'y';
-  const clean = stripSecrets(secret);
-  assert.equal(clean.auth.basic.password, undefined);
-  assert.equal(clean.auth.oauth2.clientSecret, undefined);
-  assert.deepEqual(requiredOrigins(config), ['https://my-s4-system.example.com/*']);
-  const onPrem = { ...config, sap: { ...config.sap, baseUrl: 'http://sapgw01.corp.local:8000' }, auth: { ...config.auth, method: 'basic' } };
-  assert.deepEqual(requiredOrigins(onPrem), ['http://sapgw01.corp.local/*'], 'http host, port stripped');
 });

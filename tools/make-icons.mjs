@@ -1,4 +1,4 @@
-// Generates the extension icons (a blue rounded square with a white check mark) without dependencies.
+// Generates the dashboard icons (a blue rounded square with a white check mark) without dependencies.
 // Run with: node tools/make-icons.mjs
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';

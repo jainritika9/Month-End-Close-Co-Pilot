@@ -1,5 +1,5 @@
 {
-  "_comment": "Default configuration. Everything here can be overridden from the extension's Options page (or by importing a JSON file with the same shape). Never put passwords or secrets in this file.",
+  "_comment": "Default configuration for the close co-pilot. The MCP server, the localhost dashboard and the BTP build read it; MCP users can override it with a JSON file of the same shape (plugin option config_file). Never put passwords or secrets in this file.",
   "sap": {
     "baseUrl": "http://vhc2jq4rci.rise.ccbji.co.jp:8000/sap/bc/ui2/flp",
     "client": "100",
@@ -12,13 +12,6 @@
     "requestTimeoutMs": 30000
   },
   "auth": {
-    "method": "oauth2",
-    "oauth2": {
-      "authorizeUrl": "https://my-s4-system.example.com/sap/bc/sec/oauth2/authorize",
-      "tokenUrl": "https://my-s4-system.example.com/sap/bc/sec/oauth2/token",
-      "clientId": "CLOSE_COPILOT",
-      "scope": "ZCLOSE_COPILOT_0001"
-    },
     "basic": {
       "pingPath": "/sap/opu/odata/IWFND/CATALOGSERVICE;v=2/$metadata"
     }
@@ -112,7 +105,7 @@
     },
     "grir": {
       "label": "Open GR/IR items",
-      "_comment": "Standard SAP API (API_OPLACCTGDOCITEMCUBE_SRV), no custom ABAP - filtered to the GR/IR clearing G/L account (sap.grirAccount) and uncleared lines. This entity is individual accounting document line items, not a pre-aggregated PO-item balance the way the old CDS view was, so groupByPoItem tells the extension to sum GR vs IR lines per PO item client-side first (see processing.js's aggregateGrirLineItems) - a goods receipt posts credit (H) to this account, an invoice receipt posts debit (S), which is how the two are told apart. Field names and the account number were verified against this system's real $metadata and data, not just documentation - see abap/README.md.",
+      "_comment": "Standard SAP API (API_OPLACCTGDOCITEMCUBE_SRV), no custom ABAP - filtered to the GR/IR clearing G/L account (sap.grirAccount) and uncleared lines. This entity is individual accounting document line items, not a pre-aggregated PO-item balance the way the old CDS view was, so groupByPoItem tells the dashboard to sum GR vs IR lines per PO item client-side first (see processing.js's aggregateGrirLineItems) - a goods receipt posts credit (H) to this account, an invoice receipt posts debit (S), which is how the two are told apart. Field names and the account number were verified against this system's real $metadata and data, not just documentation - see abap/README.md.",
       "path": "/sap/opu/odata/sap/API_OPLACCTGDOCITEMCUBE_SRV/A_OperationalAcctgDocItemCube",
       "query": {
         "$filter": "CompanyCode eq '{companyCode}' and GLAccount eq '{grirAccount}' and IsCleared eq false"

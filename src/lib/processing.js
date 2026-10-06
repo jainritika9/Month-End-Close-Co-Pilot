@@ -1,5 +1,5 @@
 // Pure data processing: normalises raw OData rows using the configured field mappings and derives
-// the dashboard summary and alerts. No chrome.* APIs here so it can be unit-tested in Node.
+// the dashboard summary and alerts. No browser APIs here, so it can be unit-tested in Node.
 
 const DAY_MS = 24 * 3600 * 1000;
 

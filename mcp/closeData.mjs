@@ -1,4 +1,4 @@
-// Node-side data layer for the Claude Code plugin's MCP server. Reuses the Chrome extension's
+// Node-side data layer for the Claude Code plugin's MCP server. Reuses the dashboard's
 // pure modules (OData URL building/parsing, analysis rules, demo data) and replaces the
 // browser-only parts: config comes from files + environment, auth is Basic from environment.
 
@@ -28,7 +28,7 @@ export async function loadConfig() {
   const defaults = JSON.parse(await readFile(new URL('../config/default-config.json', import.meta.url), 'utf8'));
   let config = defaults;
 
-  // Optional full override, e.g. a file exported from the extension's Settings page.
+  // Optional full override, e.g. a JSON file of the same shape as default-config.json.
   const file = option('SAP_COPILOT_CONFIG', 'config_file');
   if (file) config = deepMerge(config, JSON.parse(await readFile(file, 'utf8')));
 

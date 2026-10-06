@@ -111,6 +111,6 @@ Change the repo, build again, and deploy the new archive. Bump `version` in `mta
 
 ## Known limits
 
-- The bundle contains the same settings as the Chrome extension, minus the SAP host name. Settings are changed by rebuilding, not from the page.
+- The bundle contains the same settings as config/default-config.json, minus the SAP host name. Settings are changed by rebuilding, not from the page.
 - Data limits from [abap/README.md](../abap/README.md) still apply, for example the 365-day window on maintenance orders and the empty accruals API in the current system.
 - This repo has been checked with demo data and with a stubbed SAP OData endpoint in headless Edge, and the MTA descriptor passed `mbt`'s parser. It has **not** been deployed to a BTP subaccount or run against the real SAP system.

@@ -1,6 +1,6 @@
-// Entry point for the SAP BTP build (see btp/README.md). Same page and rendering as the Chrome
-// extension and the localhost dashboard. Data is read from the OData services through the approuter,
-// so there is no sign-in form here: the BTP sign-in happens before this page loads.
+// Entry point for the SAP BTP build (see btp/README.md). Same page and rendering as the localhost
+// dashboard. Data is read from the OData services through the approuter, so there is no sign-in
+// form here: the BTP sign-in happens before this page loads.
 
 import { setSnapshot, closeDrawer, setPlantHandler } from '../src/dashboard/render.js';
 import { periodVars } from '../src/lib/config.js';
@@ -9,8 +9,8 @@ import { getBrowserSnapshot } from './browser-snapshot.js';
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 
-// Extension and localhost-server controls have no meaning here.
-for (const id of ['openSettings', 'loginOAuth', 'login', 'signOut', 'sessionInfo']) $(id).hidden = true;
+// The approuter handles sign-in, so the localhost sign-in form and sign-out controls stay hidden.
+for (const id of ['login', 'signOut', 'sessionInfo']) $(id).hidden = true;
 
 function showBanner(message) {
   $('banner').hidden = !message;

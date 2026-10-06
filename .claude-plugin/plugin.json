@@ -74,7 +74,7 @@
     "config_file": {
       "type": "file",
       "title": "Config file (optional)",
-      "description": "JSON exported from the Chrome extension's Settings page, to reuse its data sources and thresholds",
+      "description": "JSON of the same shape as config/default-config.json, to reuse its data sources and thresholds",
       "required": false
     }
   },

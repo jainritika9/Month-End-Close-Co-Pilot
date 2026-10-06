@@ -1,5 +1,5 @@
-// Dashboard rendering shared by the Chrome extension (dashboard.js) and the local web dashboard
-// (web/app.js). Pure DOM work on a snapshot; how the snapshot is obtained is up to the caller.
+// Dashboard rendering shared by the localhost dashboard (web/app.js) and the BTP app (btp/app.js).
+// Pure DOM work on a snapshot; how the snapshot is obtained is up to the caller.
 
 import { GRIR_BUCKETS, CHECKLIST_CATEGORIES, combineChecklistSummaries } from '../lib/processing.js';
 import { donut, hbars, progress } from '../lib/charts.js';
@@ -16,8 +16,8 @@ const filters = { checklist: 'all', grir: 'all', accruals: 'all' };
 // Which of the 3 checklist-like sources (inspection lots, production orders, maintenance orders)
 // the shared "Close checklist" card is currently showing.
 let checklistTab = CHECKLIST_CATEGORIES[0][0];
-// Set by the runtime-specific app code (dashboard.js for the extension, web/app.js for the web
-// dashboard), since how a plant selection actually triggers a re-fetch differs between the two.
+// Set by the runtime-specific app code (web/app.js or btp/app.js), since how a plant selection
+// actually triggers a re-fetch differs between the two.
 let onPlantSubmit = () => {};
 
 /** Registers the handler called with (tabKey, plantValue) when a tab's plant selector is submitted. */

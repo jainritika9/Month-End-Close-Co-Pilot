@@ -1,14 +1,10 @@
 // Web version of the dashboard page (served by web/server.mjs). Same markup and rendering as the
-// Chrome extension; data comes from the local server's /api instead of chrome.* APIs.
+// BTP build; data comes from the local server's /api.
 
 import { setSnapshot, closeDrawer, setPlantHandler } from '/src/dashboard/render.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
-
-// Extension-only controls have no meaning here.
-$('openSettings').hidden = true;
-$('loginOAuth').hidden = true;
 
 function showBanner(message) {
   $('banner').hidden = !message;
