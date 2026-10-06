@@ -100,7 +100,7 @@ The server has no npm dependencies. It reads SAP with Basic authentication and c
 This is the same dashboard as the Chrome extension, served as a normal web page from your PC. It has the KPI tiles, charts, filterable tables and drill-down, plus company code, period and year selectors in the header. There are 2 ways to start it:
 
 - **In Claude Code:** run `/close-copilot:dashboard`, or `/dashboard` in this repo. Claude replies with a link like `http://localhost:8787/`. The page stays available while that Claude Code session is open.
-- **Standalone:** run `npm run dashboard`, which also opens the browser. It uses the demo mode from `config/default-config.json`. For live SAP data, start it with `SAP_DEMO_MODE=false`; the page then shows an SAP sign-in form.
+- **Standalone:** run `npm run dashboard`, which also opens the browser. It uses live SAP data by default, so the page shows an SAP sign-in form. For sample data, start it with `SAP_DEMO_MODE=true`.
 
 The server listens on `127.0.0.1` only, so no other computer can open it. The SAP password you enter stays in the server's memory and is never written to disk. SAP is read server-side, so the browser needs no extension and hits no CORS errors. The server is in [web/server.mjs](web/server.mjs). It shares all rendering code with the extension ([src/dashboard/render.js](src/dashboard/render.js)).
 

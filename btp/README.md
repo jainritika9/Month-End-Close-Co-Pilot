@@ -21,7 +21,7 @@ tools/build-btp.mjs         builds the static site into btp/dist/ (run by the MT
 - A BTP subaccount with a Cloud Foundry space, and entitlements for: HTML5 Apps Repository (`app-host`, `app-runtime`), Authorization & Trust Management / XSUAA (`application`), Destination (`lite`). Add SAP Build Work Zone if the launchpad is Work Zone.
 - Network path from BTP to the SAP system. The SAP host (`vhc2jq4rci.rise.ccbji.co.jp`, port 8000) resolves only on the corporate network, so BTP needs a Cloud Connector (or the RISE connectivity SAP provides) that exposes it to the subaccount. Basis confirms this first.
 - The OData services are registered and authorized in SAP. The five standard APIs plus the parked-document view, with the `S_SERVICE` and other authorizations, are listed in [abap/README.md](../abap/README.md) (sections "Test URLs" and "Authorizations").
-- **Decide the default `demoMode` before building.** The build bundles `config/default-config.json` exactly as it is in the repo. Set `"demoMode": false` and commit it first, or the tile shows sample data.
+- **Demo mode is off by default.** `config/default-config.json` no longer has a `demoMode` key, so the build shows live SAP data. Commit any config change before building, because the build bundles the working tree.
 
 ## 2. Build the archive
 
